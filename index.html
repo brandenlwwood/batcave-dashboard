@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alfred's Batcave Command Center</title>
+    <link rel="stylesheet" href="batcave.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <!-- Background Effects -->
+    <div class="cave-background"></div>
+    <div class="power-grid"></div>
+    <div class="bat-signal-bg"></div>
+    
+    <!-- Main Interface -->
+    <div class="batcave-container">
+        <!-- Header Section -->
+        <header class="cave-header">
+            <div class="bat-logo-container">
+                <div class="bat-logo">
+                    <i class="fas fa-mask" id="batLogo"></i>
+                </div>
+                <div class="system-title">
+                    <h1>ALFRED'S COMMAND CENTER</h1>
+                    <div class="subtitle">GOTHAM SURVEILLANCE & OPERATIONS</div>
+                </div>
+            </div>
+            
+            <div class="system-status">
+                <div class="status-indicator online" id="systemStatus">
+                    <div class="pulse-dot"></div>
+                    SYSTEMS ONLINE
+                </div>
+                <div class="current-time" id="currentTime"></div>
+            </div>
+        </header>
+
+        <!-- Mission Briefing -->
+        <section class="mission-briefing" id="missionBriefing">
+            <div class="briefing-header">
+                <i class="fas fa-scroll"></i>
+                <span>MISSION BRIEFING</span>
+                <div class="briefing-controls">
+                    <button class="brief-btn" onclick="generateBriefing()">
+                        <i class="fas fa-sync-alt"></i> REFRESH
+                    </button>
+                </div>
+            </div>
+            <div class="briefing-content" id="briefingContent">
+                <div class="typing-text" id="briefingText">Initializing systems...</div>
+            </div>
+        </section>
+
+        <!-- Main Dashboard Grid -->
+        <div class="dashboard-grid">
+            <!-- Weather Station -->
+            <div class="cave-module weather-module">
+                <div class="module-header">
+                    <i class="fas fa-cloud-rain"></i>
+                    <span>GOTHAM WEATHER</span>
+                    <div class="threat-level" id="weatherThreat">CLEAR</div>
+                </div>
+                <div class="weather-display" id="weatherDisplay">
+                    <div class="weather-main">
+                        <div class="temperature" id="temperature">--°</div>
+                        <div class="weather-icon" id="weatherIcon">
+                            <i class="fas fa-cloud"></i>
+                        </div>
+                    </div>
+                    <div class="weather-details" id="weatherDetails">
+                        <div class="detail">Humidity: <span id="humidity">--%</span></div>
+                        <div class="detail">Wind: <span id="windSpeed">-- mph</span></div>
+                        <div class="detail">Visibility: <span id="visibility">-- mi</span></div>
+                    </div>
+                    <div class="weather-forecast" id="forecast"></div>
+                </div>
+            </div>
+
+            <!-- Surveillance Monitor -->
+            <div class="cave-module surveillance-module">
+                <div class="module-header">
+                    <i class="fas fa-eye"></i>
+                    <span>SURVEILLANCE</span>
+                    <div class="alert-count" id="alertCount">0</div>
+                </div>
+                <div class="surveillance-feed">
+                    <div class="feed-item">
+                        <div class="timestamp" id="lastActivity">--:--</div>
+                        <div class="activity-text" id="activityText">Monitoring systems...</div>
+                    </div>
+                    <div class="news-ticker" id="newsTicker">
+                        <div class="ticker-content" id="tickerContent">
+                            System initialization complete • All sectors secured • Standing by for orders
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Wayne Enterprises -->
+            <div class="cave-module financial-module">
+                <div class="module-header">
+                    <i class="fas fa-chart-line"></i>
+                    <span>WAYNE ENTERPRISES</span>
+                    <div class="market-status" id="marketStatus">CLOSED</div>
+                </div>
+                <div class="financial-display" id="financialDisplay">
+                    <div class="stock-ticker" id="stockTicker">
+                        <div class="stock-item">
+                            <span class="symbol">WE</span>
+                            <span class="price">$147.52</span>
+                            <span class="change positive">+2.34%</span>
+                        </div>
+                        <div class="stock-item">
+                            <span class="symbol">TECH</span>
+                            <span class="price">$89.21</span>
+                            <span class="change negative">-0.87%</span>
+                        </div>
+                    </div>
+                    <div class="portfolio-summary">
+                        <div class="summary-item">
+                            <span>Portfolio Value</span>
+                            <span class="value">$2,847,392</span>
+                        </div>
+                        <div class="summary-item">
+                            <span>Today's Change</span>
+                            <span class="value positive">+$23,847</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Communications -->
+            <div class="cave-module comms-module">
+                <div class="module-header">
+                    <i class="fas fa-satellite-dish"></i>
+                    <span>COMMUNICATIONS</span>
+                    <div class="signal-strength">
+                        <i class="fas fa-signal"></i>
+                    </div>
+                </div>
+                <div class="comms-display">
+                    <div class="message-queue" id="messageQueue">
+                        <div class="message-item">
+                            <div class="sender">GCPD</div>
+                            <div class="preview">All quiet on patrol routes...</div>
+                            <div class="timestamp">21:05</div>
+                        </div>
+                        <div class="message-item urgent">
+                            <div class="sender">ORACLE</div>
+                            <div class="preview">Scanning for unusual activity...</div>
+                            <div class="timestamp">21:02</div>
+                        </div>
+                    </div>
+                    <div class="bat-signal" id="batSignal" onclick="activateBatSignal()">
+                        <i class="fas fa-mask"></i>
+                        <span>BAT-SIGNAL</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Diagnostics -->
+            <div class="cave-module diagnostics-module">
+                <div class="module-header">
+                    <i class="fas fa-microchip"></i>
+                    <span>CAVE SYSTEMS</span>
+                    <div class="system-health" id="systemHealth">OPTIMAL</div>
+                </div>
+                <div class="diagnostics-display">
+                    <div class="system-metric">
+                        <span>Main Power</span>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: 98%"></div>
+                        </div>
+                        <span class="metric-value">98%</span>
+                    </div>
+                    <div class="system-metric">
+                        <span>Security Grid</span>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: 100%"></div>
+                        </div>
+                        <span class="metric-value">100%</span>
+                    </div>
+                    <div class="system-metric">
+                        <span>Comms Array</span>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: 94%"></div>
+                        </div>
+                        <span class="metric-value">94%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Calendar/Schedule -->
+            <div class="cave-module schedule-module">
+                <div class="module-header">
+                    <i class="fas fa-calendar-alt"></i>
+                    <span>MISSION SCHEDULE</span>
+                    <div class="priority-indicator" id="priorityIndicator">LOW</div>
+                </div>
+                <div class="schedule-display" id="scheduleDisplay">
+                    <div class="schedule-item">
+                        <div class="time">22:00</div>
+                        <div class="event">Perimeter Sweep - East End</div>
+                        <div class="status pending">PENDING</div>
+                    </div>
+                    <div class="schedule-item">
+                        <div class="time">23:30</div>
+                        <div class="event">Wayne Enterprises Board Review</div>
+                        <div class="status scheduled">SCHEDULED</div>
+                    </div>
+                    <div class="schedule-item">
+                        <div class="time">00:15</div>
+                        <div class="event">Equipment Maintenance</div>
+                        <div class="status routine">ROUTINE</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Voice Interface -->
+        <div class="voice-interface" id="voiceInterface">
+            <div class="voice-controls">
+                <button class="voice-btn" id="voiceBtn" onclick="toggleVoiceControl()">
+                    <i class="fas fa-microphone"></i>
+                    <span>VOICE COMMAND</span>
+                </button>
+                <button class="voice-settings-btn" id="voiceSettingsBtn" onclick="toggleVoiceSettings()">
+                    <i class="fas fa-cog"></i>
+                </button>
+            </div>
+            
+            <div class="voice-settings" id="voiceSettings" style="display: none;">
+                <div class="settings-header">🎭 Alfred Voice Selection</div>
+                <select id="voiceSelector" onchange="changeAlfredVoice()">
+                    <option value="">Auto-Select Best Voice</option>
+                </select>
+                <button class="test-voice-btn" onclick="testCurrentVoice()">Test Voice</button>
+            </div>
+            
+            <div class="voice-response" id="voiceResponse"></div>
+            <div class="voice-commands-help" id="voiceHelp">
+                <div class="help-title">🎤 Try saying:</div>
+                <div class="help-commands">
+                    "Hello Alfred" • "Weather report" • "System status" • "Briefing" • "Stocks" • "What time is it"
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audio Elements -->
+    <audio id="systemSound" preload="auto">
+        <source src="sounds/system-beep.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="alertSound" preload="auto">
+        <source src="sounds/alert.mp3" type="audio/mpeg">
+    </audio>
+
+    <script src="voice-system.js"></script>
+    <script src="batcave.js"></script>
+</body>
+</html>
