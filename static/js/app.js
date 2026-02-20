@@ -5,6 +5,11 @@
  */
 
 
+// Fix: strip credentials from URL to prevent fetch() failures with basic auth
+if (window.location.href.includes("@")) {
+    window.location.replace(window.location.protocol + "//" + window.location.host + window.location.pathname + window.location.search + window.location.hash);
+}
+
 // ===== Collapsible Widgets =====
 function toggleWidget(id) {
     const widget = document.getElementById(id);
