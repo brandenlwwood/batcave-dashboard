@@ -38,7 +38,7 @@ html, body {
     background: var(--bg-void);
     color: var(--text-primary);
     font-family: var(--font-body);
-    font-size: 15px;
+    font-size: 17px;
     line-height: 1.5;
     overflow-x: hidden;
     min-height: 100vh;
@@ -135,7 +135,7 @@ html, body {
 
 .header-title {
     font-family: var(--font-display);
-    font-size: 15px;
+    font-size: 17px;
     font-weight: 700;
     letter-spacing: 4px;
     display: flex;
@@ -470,7 +470,7 @@ html, body {
 .weather-temp .unit { font-size: 16px; color: var(--text-muted); font-weight: 400; }
 
 .weather-desc {
-    font-size: 15px;
+    font-size: 17px;
     font-weight: 600;
     color: var(--text-primary);
 }
@@ -1701,7 +1701,7 @@ html, body {
     grid-row: 1;
     grid-column: 2;
     font-weight: 600;
-    font-size: 15px;
+    font-size: 17px;
     color: #f0f0f0;
 }
 
