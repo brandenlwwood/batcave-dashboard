@@ -978,6 +978,7 @@ async def calendar_events():
     ics_feeds = [
         {"url": "http://avc13red.woodu2.com/calendar.ics", "source": "AVC 13 Red", "color": "#e83050"},
         {"url": "http://avc15red.woodu2.com/calendar.ics", "source": "AVC 15 Red", "color": "#8860e8"},
+        {"url": "https://calendar.google.com/calendar/ical/family12264328603363530032%40group.calendar.google.com/private-1320aa63cd2319afe316b0124cdbeeaa/basic.ics", "source": "Family", "color": "#00e8a0"},
     ]
     
     extra_ics = os.getenv("EXTRA_ICS_FEEDS", "")
@@ -1059,7 +1060,7 @@ async def calendar_events():
             cal_ids_str = os.getenv("GOOGLE_CALENDAR_IDS", "")
             google_calendars = {
                 "alfred@saidr.io": {"source": "Alfred", "color": "#00b4e8"},
-                "family12264328603363530032@group.calendar.google.com": {"source": "Family", "color": "#00e8a0"},
+                # Family calendar now via ICS feed (Part 1)
             }
             
             # Override with env if set
