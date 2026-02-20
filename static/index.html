@@ -269,6 +269,124 @@
         </div>
     </div>
 
+    <!-- News Ticker — Full Width -->
+    <div class="widget widget-news" id="widget-news" style="grid-column: span 3;">
+        <div class="widget-header">
+            <div class="widget-header-left">
+                <div class="header-icon-wrap"><i class="fas fa-rss"></i></div>
+                <span>INTEL FEED</span>
+            </div>
+            <div class="widget-header-right">
+                <span class="badge badge-blue" id="news-topic">SCANNING</span>
+            </div>
+        </div>
+        <div class="widget-body" style="padding: 0;">
+            <div class="news-ticker-container">
+                <div class="news-ticker" id="news-ticker">
+                    <div class="loading-placeholder">Acquiring intelligence...</div>
+                </div>
+            </div>
+            <div class="news-articles" id="news-articles" style="display:none;">
+            </div>
+        </div>
+    </div>
+
+    <!-- Network Topology -->
+    <div class="widget widget-topology" id="widget-topology">
+        <div class="widget-header">
+            <div class="widget-header-left">
+                <div class="header-icon-wrap"><i class="fas fa-diagram-project"></i></div>
+                <span>NETWORK MAP</span>
+            </div>
+            <div class="widget-header-right">
+                <span class="badge badge-green" id="topo-device-count">0</span>
+            </div>
+        </div>
+        <div class="widget-body">
+            <div class="topology-map" id="topology-map">
+                <div class="loading-placeholder">Mapping network...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Speedtest History -->
+    <div class="widget" id="widget-speedtest">
+        <div class="widget-header">
+            <div class="widget-header-left">
+                <div class="header-icon-wrap"><i class="fas fa-gauge-high"></i></div>
+                <span>BANDWIDTH</span>
+            </div>
+            <div class="widget-header-right">
+                <button class="speed-run-btn" id="speedtest-btn" onclick="runSpeedtest()">
+                    <i class="fas fa-play"></i> RUN
+                </button>
+            </div>
+        </div>
+        <div class="widget-body">
+            <div class="speedtest-current" id="speedtest-current">
+                <div class="speed-stat">
+                    <div class="speed-value" id="speed-down">--</div>
+                    <div class="speed-label">↓ DOWNLOAD</div>
+                    <div class="speed-unit">Mbps</div>
+                </div>
+                <div class="speed-stat">
+                    <div class="speed-value" id="speed-up">--</div>
+                    <div class="speed-label">↑ UPLOAD</div>
+                    <div class="speed-unit">Mbps</div>
+                </div>
+                <div class="speed-stat">
+                    <div class="speed-value" id="speed-ping">--</div>
+                    <div class="speed-label">PING</div>
+                    <div class="speed-unit">ms</div>
+                </div>
+            </div>
+            <div class="speedtest-chart" id="speedtest-chart"></div>
+        </div>
+    </div>
+
+    <!-- Notification Center -->
+    <div class="widget" id="widget-notifications">
+        <div class="widget-header">
+            <div class="widget-header-left">
+                <div class="header-icon-wrap"><i class="fas fa-bell"></i></div>
+                <span>ALERT LOG</span>
+            </div>
+            <div class="widget-header-right">
+                <span class="badge badge-amber" id="notif-count" style="display:none;">0</span>
+            </div>
+        </div>
+        <div class="widget-body">
+            <div class="notification-list" id="notification-list">
+                <div class="notif-empty">No alerts. All quiet on the home front.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Timers -->
+    <div class="widget" id="widget-timers">
+        <div class="widget-header">
+            <div class="widget-header-left">
+                <div class="header-icon-wrap"><i class="fas fa-stopwatch"></i></div>
+                <span>QUICK TIMERS</span>
+            </div>
+        </div>
+        <div class="widget-body">
+            <div class="timer-presets" id="timer-presets">
+                <button class="timer-preset-btn" onclick="startTimer(5, 'Quick Break')">5m</button>
+                <button class="timer-preset-btn" onclick="startTimer(10, 'Focus')">10m</button>
+                <button class="timer-preset-btn" onclick="startTimer(15, 'Homework')">15m</button>
+                <button class="timer-preset-btn" onclick="startTimer(25, 'Pomodoro')">25m</button>
+                <button class="timer-preset-btn" onclick="startTimer(30, 'Cooking')">30m</button>
+                <button class="timer-preset-btn" onclick="startTimer(60, '1 Hour')">60m</button>
+                <div class="timer-custom">
+                    <input type="number" id="timer-custom-min" class="timer-custom-input" placeholder="Min" min="1" max="180">
+                    <button class="timer-preset-btn timer-go" onclick="startCustomTimer()"><i class="fas fa-play"></i></button>
+                </div>
+            </div>
+            <div class="active-timers" id="active-timers"></div>
+        </div>
+    </div>
+
     <!-- Mission Board — Full Width -->
     <div class="widget widget-kanban" id="widget-kanban">
         <div class="widget-header">

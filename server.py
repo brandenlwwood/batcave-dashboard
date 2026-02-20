@@ -561,6 +561,271 @@ async def chat_message(request: Request):
 # WebSocket
 # ============================================================
 
+
+# ============================================================
+# API Routes — Phase 3: News, Network Topology, Speedtest, Notifications, Timers
+# ============================================================
+
+@app.get("/api/news")
+async def news_feed():
+    """Curated news ticker — eBPF, federal IT, Cisco, competitors"""
+    topics = [
+        ("eBPF Cilium cloud native networking", "ebpf"),
+        ("federal IT cybersecurity contracts 2026", "federal"),
+        ("Cisco Hypershield security", "cisco"),
+        ("zero trust microsegmentation federal", "zerotrust"),
+    ]
+    # Rotate topic based on hour
+    hour = datetime.now().hour
+    topic_query, topic_tag = topics[hour % len(topics)]
+    
+    articles = []
+    async with httpx.AsyncClient(timeout=15) as client:
+        try:
+            # Use Brave Search API
+            resp = await client.get(
+                "https://api.search.brave.com/res/v1/web/search",
+                params={"q": topic_query, "count": 8, "freshness": "pw"},
+                headers={"X-Subscription-Token": os.getenv("BRAVE_API_KEY", ""), "Accept": "application/json"}
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                for r in data.get("web", {}).get("results", [])[:8]:
+                    articles.append({
+                        "title": r.get("title", ""),
+                        "url": r.get("url", ""),
+                        "description": r.get("description", "")[:200],
+                        "age": r.get("age", ""),
+                        "source": r.get("meta_url", {}).get("hostname", ""),
+                        "tag": topic_tag,
+                    })
+        except Exception as e:
+            pass
+    
+    # If Brave fails or no key, try scraping a simple news source
+    if not articles:
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(f"https://news.google.com/rss/search?q={topic_query.replace(' ', '+')}&hl=en-US&gl=US&ceid=US:en")
+                if resp.status_code == 200:
+                    import re
+                    items = re.findall(r'<item>.*?<title>(.*?)</title>.*?<link>(.*?)</link>.*?<source.*?>(.*?)</source>.*?</item>', resp.text, re.DOTALL)
+                    for title, url, source in items[:8]:
+                        # Clean CDATA
+                        title = re.sub(r'<!\[CDATA\[(.*?)\]\]>', r'\1', title).strip()
+                        articles.append({
+                            "title": title,
+                            "url": url.strip(),
+                            "description": "",
+                            "age": "",
+                            "source": source.strip(),
+                            "tag": topic_tag,
+                        })
+        except:
+            pass
+    
+    return {"topic": topic_tag, "query": topic_query, "articles": articles}
+
+
+@app.get("/api/network/topology")
+async def network_topology():
+    """Network topology — MikroTik interfaces + Meraki devices + DHCP leases"""
+    topology = {"router": None, "vlans": [], "meraki_devices": [], "dhcp_leases": [], "interfaces": []}
+    
+    async with httpx.AsyncClient(timeout=10) as client:
+        # MikroTik router info
+        try:
+            resp = await client.get(f"http://{MIKROTIK_HOST}/rest/system/resource",
+                                   auth=(MIKROTIK_USER, MIKROTIK_PASS))
+            if resp.status_code == 200:
+                data = resp.json()
+                topology["router"] = {
+                    "name": data.get("board-name", "RB5009"),
+                    "version": data.get("version", "?"),
+                    "cpu_load": data.get("cpu-load", 0),
+                    "uptime": data.get("uptime", "?"),
+                    "memory_pct": round((int(data.get("total-memory", 1)) - int(data.get("free-memory", 0))) / int(data.get("total-memory", 1)) * 100),
+                }
+        except:
+            topology["router"] = {"name": "RB5009", "version": "?", "cpu_load": 0, "uptime": "?", "memory_pct": 0}
+
+        # MikroTik interfaces
+        try:
+            resp = await client.get(f"http://{MIKROTIK_HOST}/rest/interface",
+                                   auth=(MIKROTIK_USER, MIKROTIK_PASS))
+            if resp.status_code == 200:
+                for iface in resp.json():
+                    if iface.get("type") in ("ether", "vlan", "bridge") and iface.get("disabled") != "true":
+                        topology["interfaces"].append({
+                            "name": iface.get("name", ""),
+                            "type": iface.get("type", ""),
+                            "running": iface.get("running", False),
+                            "speed": iface.get("link-speed", ""),
+                            "rx_bytes": int(iface.get("rx-byte", 0)),
+                            "tx_bytes": int(iface.get("tx-byte", 0)),
+                        })
+        except:
+            pass
+
+        # MikroTik VLANs via IP addresses
+        try:
+            resp = await client.get(f"http://{MIKROTIK_HOST}/rest/ip/address",
+                                   auth=(MIKROTIK_USER, MIKROTIK_PASS))
+            if resp.status_code == 200:
+                vlan_names = {"vlan1-main": "Main", "vlan2-personal": "WayneManor", "vlan3-iot": "Beast",
+                             "vlan4-guest": "Lion-O", "vlan5-vpn": "VPN", "bridge1": "Bridge"}
+                for addr in resp.json():
+                    iface = addr.get("interface", "")
+                    topology["vlans"].append({
+                        "interface": iface,
+                        "name": vlan_names.get(iface, iface),
+                        "address": addr.get("address", ""),
+                        "network": addr.get("network", ""),
+                    })
+        except:
+            pass
+
+        # MikroTik DHCP leases
+        try:
+            resp = await client.get(f"http://{MIKROTIK_HOST}/rest/ip/dhcp-server/lease",
+                                   auth=(MIKROTIK_USER, MIKROTIK_PASS))
+            if resp.status_code == 200:
+                for lease in resp.json():
+                    if lease.get("status") == "bound":
+                        topology["dhcp_leases"].append({
+                            "address": lease.get("address", ""),
+                            "hostname": lease.get("host-name", "unknown"),
+                            "mac": lease.get("mac-address", ""),
+                            "server": lease.get("server", ""),
+                        })
+        except:
+            pass
+
+        # Meraki devices
+        try:
+            resp = await client.get(
+                f"https://api.meraki.com/api/v1/organizations/{MERAKI_ORG_ID}/devices/statuses",
+                headers={"X-Cisco-Meraki-API-Key": MERAKI_API_KEY}
+            )
+            if resp.status_code == 200:
+                for dev in resp.json():
+                    topology["meraki_devices"].append({
+                        "name": dev.get("name", dev.get("serial", "?")),
+                        "model": dev.get("model", "?"),
+                        "status": dev.get("status", "unknown"),
+                        "ip": dev.get("lanIp", ""),
+                        "mac": dev.get("mac", ""),
+                        "serial": dev.get("serial", ""),
+                    })
+        except:
+            pass
+
+    return topology
+
+
+@app.get("/api/speedtest/history")
+async def speedtest_history():
+    """Get speedtest history from stored results"""
+    speedtest_file = Path("/app/data/speedtest_history.json")
+    if speedtest_file.exists():
+        try:
+            return json.loads(speedtest_file.read_text())
+        except:
+            return {"results": []}
+    return {"results": []}
+
+
+@app.post("/api/speedtest/run")
+async def speedtest_run():
+    """Run a speedtest and store results"""
+    try:
+        result = await run_command("speedtest-cli --json 2>/dev/null || speedtest --format=json 2>/dev/null")
+        if result.strip():
+            data = json.loads(result)
+            # Normalize — speedtest-cli vs ookla speedtest have different formats
+            entry = {
+                "timestamp": datetime.now().isoformat(),
+                "download_mbps": round(data.get("download", 0) / 1_000_000, 1) if data.get("download", 0) > 1000 else round(data.get("download", {}).get("bandwidth", 0) * 8 / 1_000_000, 1),
+                "upload_mbps": round(data.get("upload", 0) / 1_000_000, 1) if data.get("upload", 0) > 1000 else round(data.get("upload", {}).get("bandwidth", 0) * 8 / 1_000_000, 1),
+                "ping_ms": round(data.get("ping", data.get("ping", {}).get("latency", 0)), 1) if isinstance(data.get("ping"), (int, float)) else round(data.get("ping", {}).get("latency", 0), 1),
+                "server": data.get("server", {}).get("name", data.get("server", {}).get("host", "?")),
+            }
+            
+            # Append to history
+            history_file = Path("/app/data/speedtest_history.json")
+            history = {"results": []}
+            if history_file.exists():
+                try:
+                    history = json.loads(history_file.read_text())
+                except:
+                    pass
+            history["results"].append(entry)
+            # Keep last 100
+            history["results"] = history["results"][-100:]
+            history_file.parent.mkdir(parents=True, exist_ok=True)
+            history_file.write_text(json.dumps(history, indent=2))
+            
+            return {"status": "ok", "result": entry}
+        return {"error": "speedtest not available"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/notifications")
+async def notifications():
+    """Get notification history"""
+    notif_file = Path("/app/data/notifications.json")
+    if notif_file.exists():
+        try:
+            data = json.loads(notif_file.read_text())
+            return data
+        except:
+            pass
+    return {"notifications": []}
+
+
+@app.post("/api/notifications")
+async def add_notification(request: Request):
+    """Add a notification"""
+    body = await request.json()
+    notif_file = Path("/app/data/notifications.json")
+    notif_file.parent.mkdir(parents=True, exist_ok=True)
+    
+    data = {"notifications": []}
+    if notif_file.exists():
+        try:
+            data = json.loads(notif_file.read_text())
+        except:
+            pass
+    
+    notif = {
+        "id": str(int(datetime.now().timestamp() * 1000)),
+        "title": body.get("title", ""),
+        "message": body.get("message", ""),
+        "type": body.get("type", "info"),  # info, warning, success, error
+        "timestamp": datetime.now().isoformat(),
+        "read": False,
+    }
+    data["notifications"].insert(0, notif)
+    data["notifications"] = data["notifications"][:50]  # Keep last 50
+    notif_file.write_text(json.dumps(data, indent=2))
+    
+    await manager.broadcast({"type": "notification", "data": notif})
+    return {"status": "ok", "notification": notif}
+
+
+@app.post("/api/notifications/{notif_id}/read")
+async def mark_notification_read(notif_id: str):
+    """Mark a notification as read"""
+    notif_file = Path("/app/data/notifications.json")
+    if notif_file.exists():
+        data = json.loads(notif_file.read_text())
+        for n in data.get("notifications", []):
+            if n["id"] == notif_id:
+                n["read"] = True
+        notif_file.write_text(json.dumps(data, indent=2))
+    return {"status": "ok"}
+
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
     await manager.connect(ws)

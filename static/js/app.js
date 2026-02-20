@@ -33,6 +33,7 @@ function handleWsMessage(msg) {
         case 'kanban_update': renderKanban(msg.data); break;
         case 'lights_update': renderLights(msg.data); break;
         case 'media_update': renderMediaPlayers(msg.data); break;
+        case 'notification': fetchNotifications(); break;
     }
 }
 
@@ -457,6 +458,367 @@ function playClip(url) {
 }
 
 // ===== Init =====
+
+// ===== Phase 3: News Ticker =====
+let newsExpanded = false;
+
+async function fetchNews() {
+    try {
+        const data = await (await fetch('/api/news')).json();
+        const ticker = document.getElementById('news-ticker');
+        const topicBadge = document.getElementById('news-topic');
+        const articles = document.getElementById('news-articles');
+        
+        const tagMap = { ebpf: 'eBPF', federal: 'FED IT', cisco: 'CISCO', zerotrust: 'ZERO TRUST' };
+        topicBadge.textContent = tagMap[data.topic] || data.topic?.toUpperCase() || 'INTEL';
+        
+        if (!data.articles?.length) {
+            ticker.innerHTML = '<div class="ticker-item"><span class="ticker-text">No intel available — check back later</span></div>';
+            return;
+        }
+        
+        // Scrolling ticker
+        const tickerHtml = data.articles.map(a => 
+            `<span class="ticker-item" onclick="toggleNewsPanel()">
+                <span class="ticker-source">${a.source || ''}</span>
+                <span class="ticker-text">${escapeHtml(a.title)}</span>
+                ${a.age ? `<span class="ticker-age">${a.age}</span>` : ''}
+            </span>`
+        ).join('<span class="ticker-sep">◆</span>');
+        
+        ticker.innerHTML = `<div class="ticker-scroll">${tickerHtml}${tickerHtml}</div>`;
+        
+        // Expandable article list
+        articles.innerHTML = data.articles.map(a => 
+            `<a class="news-article" href="${a.url}" target="_blank" rel="noopener">
+                <div class="news-article-title">${escapeHtml(a.title)}</div>
+                <div class="news-article-meta">
+                    <span class="news-source">${a.source || ''}</span>
+                    ${a.age ? `<span class="news-age">${a.age}</span>` : ''}
+                </div>
+                ${a.description ? `<div class="news-article-desc">${escapeHtml(a.description)}</div>` : ''}
+            </a>`
+        ).join('');
+    } catch(e) { console.error('[News]', e); }
+}
+
+function toggleNewsPanel() {
+    const articles = document.getElementById('news-articles');
+    newsExpanded = !newsExpanded;
+    articles.style.display = newsExpanded ? 'block' : 'none';
+}
+
+// ===== Phase 3: Network Topology =====
+async function fetchTopology() {
+    try {
+        const data = await (await fetch('/api/network/topology')).json();
+        const map = document.getElementById('topology-map');
+        const countBadge = document.getElementById('topo-device-count');
+        
+        const totalDevices = (data.dhcp_leases?.length || 0) + (data.meraki_devices?.length || 0);
+        countBadge.textContent = totalDevices + ' DEVICES';
+        
+        let html = '';
+        
+        // Router node
+        if (data.router) {
+            html += `<div class="topo-section">
+                <div class="topo-node topo-router">
+                    <i class="fas fa-network-wired"></i>
+                    <div class="topo-node-info">
+                        <div class="topo-node-name">${data.router.name}</div>
+                        <div class="topo-node-detail">v${data.router.version} · CPU ${data.router.cpu_load}% · RAM ${data.router.memory_pct}%</div>
+                        <div class="topo-node-detail">${data.router.uptime}</div>
+                    </div>
+                </div>
+            </div>`;
+        }
+        
+        // VLANs
+        if (data.vlans?.length) {
+            html += '<div class="topo-section"><div class="topo-section-title">VLANs</div><div class="topo-vlan-grid">';
+            for (const vlan of data.vlans) {
+                const leaseCount = data.dhcp_leases?.filter(l => {
+                    const net = vlan.network;
+                    if (!net) return false;
+                    return l.address.startsWith(net.split('.').slice(0,3).join('.'));
+                }).length || 0;
+                html += `<div class="topo-vlan">
+                    <div class="topo-vlan-name">${vlan.name}</div>
+                    <div class="topo-vlan-addr">${vlan.address}</div>
+                    <div class="topo-vlan-devices">${leaseCount} devices</div>
+                </div>`;
+            }
+            html += '</div></div>';
+        }
+        
+        // Meraki devices
+        if (data.meraki_devices?.length) {
+            html += '<div class="topo-section"><div class="topo-section-title">Wireless</div><div class="topo-device-list">';
+            for (const dev of data.meraki_devices) {
+                const statusClass = dev.status === 'online' ? 'online' : 'offline';
+                html += `<div class="topo-device">
+                    <div class="infra-dot ${statusClass}"></div>
+                    <div><div class="topo-device-name">${dev.name || dev.model}</div>
+                    <div class="topo-device-detail">${dev.model} · ${dev.ip || 'no IP'}</div></div>
+                </div>`;
+            }
+            html += '</div></div>';
+        }
+        
+        // Active interfaces
+        if (data.interfaces?.length) {
+            const activeIfaces = data.interfaces.filter(i => i.running);
+            if (activeIfaces.length) {
+                html += '<div class="topo-section"><div class="topo-section-title">Active Links</div><div class="topo-iface-grid">';
+                for (const iface of activeIfaces.slice(0, 12)) {
+                    const rx = formatBytes(iface.rx_bytes);
+                    const tx = formatBytes(iface.tx_bytes);
+                    html += `<div class="topo-iface">
+                        <div class="topo-iface-name">${iface.name}</div>
+                        <div class="topo-iface-speed">${iface.speed || iface.type}</div>
+                        <div class="topo-iface-traffic">↓${rx} ↑${tx}</div>
+                    </div>`;
+                }
+                html += '</div></div>';
+            }
+        }
+        
+        map.innerHTML = html || '<div class="loading-placeholder">No topology data</div>';
+    } catch(e) { console.error('[Topology]', e); }
+}
+
+function formatBytes(bytes) {
+    if (bytes < 1024) return bytes + 'B';
+    if (bytes < 1048576) return (bytes/1024).toFixed(0) + 'K';
+    if (bytes < 1073741824) return (bytes/1048576).toFixed(1) + 'M';
+    return (bytes/1073741824).toFixed(1) + 'G';
+}
+
+// ===== Phase 3: Speedtest =====
+async function fetchSpeedtestHistory() {
+    try {
+        const data = await (await fetch('/api/speedtest/history')).json();
+        const results = data.results || [];
+        
+        if (results.length) {
+            const latest = results[results.length - 1];
+            document.getElementById('speed-down').textContent = latest.download_mbps || '--';
+            document.getElementById('speed-up').textContent = latest.upload_mbps || '--';
+            document.getElementById('speed-ping').textContent = latest.ping_ms || '--';
+            
+            // Render simple bar chart for last 10 results
+            renderSpeedChart(results.slice(-10));
+        }
+    } catch(e) { console.error('[Speedtest]', e); }
+}
+
+function renderSpeedChart(results) {
+    const chart = document.getElementById('speedtest-chart');
+    if (!results.length) { chart.innerHTML = ''; return; }
+    
+    const maxDown = Math.max(...results.map(r => r.download_mbps || 0), 1);
+    
+    chart.innerHTML = `<div class="speed-chart-bars">
+        ${results.map(r => {
+            const downPct = ((r.download_mbps || 0) / maxDown * 100).toFixed(0);
+            const upPct = ((r.upload_mbps || 0) / maxDown * 100).toFixed(0);
+            const time = r.timestamp ? new Date(r.timestamp).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', hour12:true}) : '';
+            const date = r.timestamp ? new Date(r.timestamp).toLocaleDateString('en-US', {month:'short', day:'numeric'}) : '';
+            return `<div class="speed-bar-group" title="${date} ${time}\n↓ ${r.download_mbps} Mbps\n↑ ${r.upload_mbps} Mbps">
+                <div class="speed-bar-container">
+                    <div class="speed-bar down" style="height:${downPct}%"></div>
+                    <div class="speed-bar up" style="height:${upPct}%"></div>
+                </div>
+                <div class="speed-bar-label">${date.split(' ')[1] || ''}</div>
+            </div>`;
+        }).join('')}
+    </div>`;
+}
+
+async function runSpeedtest() {
+    const btn = document.getElementById('speedtest-btn');
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> TESTING';
+    btn.disabled = true;
+    try {
+        const resp = await fetch('/api/speedtest/run', { method: 'POST' });
+        const data = await resp.json();
+        if (data.result) {
+            document.getElementById('speed-down').textContent = data.result.download_mbps;
+            document.getElementById('speed-up').textContent = data.result.upload_mbps;
+            document.getElementById('speed-ping').textContent = data.result.ping_ms;
+            fetchSpeedtestHistory(); // refresh chart
+        } else {
+            console.error('[Speedtest]', data.error);
+        }
+    } catch(e) { console.error('[Speedtest]', e); }
+    btn.innerHTML = '<i class="fas fa-play"></i> RUN';
+    btn.disabled = false;
+}
+
+// ===== Phase 3: Notifications =====
+async function fetchNotifications() {
+    try {
+        const data = await (await fetch('/api/notifications')).json();
+        renderNotifications(data.notifications || []);
+    } catch(e) { console.error('[Notifications]', e); }
+}
+
+function renderNotifications(notifs) {
+    const list = document.getElementById('notification-list');
+    const countBadge = document.getElementById('notif-count');
+    const unread = notifs.filter(n => !n.read).length;
+    
+    if (unread > 0) {
+        countBadge.textContent = unread;
+        countBadge.style.display = '';
+    } else {
+        countBadge.style.display = 'none';
+    }
+    
+    if (!notifs.length) {
+        list.innerHTML = '<div class="notif-empty">No alerts. All quiet on the home front.</div>';
+        return;
+    }
+    
+    const typeIcons = { info: 'fa-info-circle', warning: 'fa-exclamation-triangle', success: 'fa-check-circle', error: 'fa-times-circle' };
+    
+    list.innerHTML = notifs.slice(0, 15).map(n => {
+        const time = n.timestamp ? new Date(n.timestamp).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', hour12:true}) : '';
+        const date = n.timestamp ? new Date(n.timestamp).toLocaleDateString('en-US', {month:'short', day:'numeric'}) : '';
+        return `<div class="notif-item ${n.type || 'info'} ${n.read ? 'read' : 'unread'}" onclick="markNotifRead('${n.id}', this)">
+            <div class="notif-icon"><i class="fas ${typeIcons[n.type] || typeIcons.info}"></i></div>
+            <div class="notif-content">
+                <div class="notif-title">${escapeHtml(n.title || '')}</div>
+                <div class="notif-message">${escapeHtml(n.message || '')}</div>
+                <div class="notif-time">${date} ${time}</div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+async function markNotifRead(id, el) {
+    try {
+        await fetch(`/api/notifications/${id}/read`, { method: 'POST' });
+        el.classList.remove('unread');
+        el.classList.add('read');
+        // Update count
+        const countBadge = document.getElementById('notif-count');
+        const current = parseInt(countBadge.textContent) || 0;
+        if (current > 1) {
+            countBadge.textContent = current - 1;
+        } else {
+            countBadge.style.display = 'none';
+        }
+    } catch(e) {}
+}
+
+// ===== Phase 3: Quick Timers =====
+let activeTimers = [];
+let timerInterval = null;
+
+function startTimer(minutes, label) {
+    const timer = {
+        id: Date.now(),
+        label: label || `${minutes}m Timer`,
+        endTime: Date.now() + minutes * 60 * 1000,
+        totalMs: minutes * 60 * 1000,
+        done: false,
+    };
+    activeTimers.push(timer);
+    renderTimers();
+    
+    if (!timerInterval) {
+        timerInterval = setInterval(updateTimers, 1000);
+    }
+}
+
+function startCustomTimer() {
+    const input = document.getElementById('timer-custom-min');
+    const min = parseInt(input.value);
+    if (min && min > 0 && min <= 180) {
+        startTimer(min, `${min}m Timer`);
+        input.value = '';
+    }
+}
+
+function updateTimers() {
+    const now = Date.now();
+    let anyActive = false;
+    
+    for (const timer of activeTimers) {
+        if (!timer.done && now >= timer.endTime) {
+            timer.done = true;
+            timerAlarm(timer);
+        }
+        if (!timer.done) anyActive = true;
+    }
+    
+    renderTimers();
+    
+    if (!anyActive && activeTimers.every(t => t.done)) {
+        // Keep interval for display updates but could stop
+    }
+}
+
+function timerAlarm(timer) {
+    // Visual flash
+    document.getElementById('widget-timers').classList.add('timer-alarm');
+    setTimeout(() => document.getElementById('widget-timers').classList.remove('timer-alarm'), 3000);
+    
+    // Audio alert
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        [0, 300, 600].forEach(delay => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.frequency.value = 880;
+            osc.type = 'sine';
+            gain.gain.value = 0.3;
+            osc.start(ctx.currentTime + delay/1000);
+            osc.stop(ctx.currentTime + delay/1000 + 0.15);
+        });
+    } catch(e) {}
+}
+
+function removeTimer(id) {
+    activeTimers = activeTimers.filter(t => t.id !== id);
+    renderTimers();
+}
+
+function renderTimers() {
+    const container = document.getElementById('active-timers');
+    if (!activeTimers.length) {
+        container.innerHTML = '';
+        return;
+    }
+    
+    const now = Date.now();
+    container.innerHTML = activeTimers.map(t => {
+        if (t.done) {
+            return `<div class="timer-active done">
+                <div class="timer-label">${escapeHtml(t.label)}</div>
+                <div class="timer-display">DONE!</div>
+                <button class="timer-dismiss" onclick="removeTimer(${t.id})"><i class="fas fa-times"></i></button>
+            </div>`;
+        }
+        const remaining = Math.max(0, t.endTime - now);
+        const min = Math.floor(remaining / 60000);
+        const sec = Math.floor((remaining % 60000) / 1000);
+        const pct = ((t.totalMs - remaining) / t.totalMs * 100).toFixed(0);
+        return `<div class="timer-active">
+            <div class="timer-label">${escapeHtml(t.label)}</div>
+            <div class="timer-display">${String(min).padStart(2,'0')}:${String(sec).padStart(2,'0')}</div>
+            <div class="timer-progress"><div class="timer-progress-fill" style="width:${pct}%"></div></div>
+            <button class="timer-dismiss" onclick="removeTimer(${t.id})"><i class="fas fa-times"></i></button>
+        </div>`;
+    }).join('');
+}
+
+
+// ===== Init =====
 async function init() {
     connectWebSocket();
     initVoice();
@@ -471,6 +833,10 @@ async function init() {
         fetchLights(),
         fetchMediaPlayers(),
         fetchActivities(),
+        fetchNews(),
+        fetchTopology(),
+        fetchSpeedtestHistory(),
+        fetchNotifications(),
     ]);
 
     // Periodic refreshes
@@ -483,6 +849,10 @@ async function init() {
     setInterval(fetchLights, 10 * 1000);
     setInterval(fetchMediaPlayers, 10 * 1000);
     setInterval(fetchActivities, 30 * 60 * 1000);
+    setInterval(fetchNews, 15 * 60 * 1000);
+    setInterval(fetchTopology, 60 * 1000);
+    setInterval(fetchSpeedtestHistory, 5 * 60 * 1000);
+    setInterval(fetchNotifications, 30 * 1000);
 }
 
 init();
