@@ -1095,6 +1095,8 @@ async function init() {
     setInterval(fetchNews, 15 * 60 * 1000);
     setInterval(fetchTopology, 60 * 1000);
     setInterval(fetchSpeedtestHistory, 5 * 60 * 1000);
+    fetchSecurity();
+    setInterval(fetchSecurity, 30 * 1000);
     setInterval(fetchNotifications, 30 * 1000);
     setInterval(fetchCalendar, 5 * 60 * 1000);
 }
@@ -1263,3 +1265,123 @@ document.addEventListener('DOMContentLoaded', () => {
     const w = document.getElementById('widget-media-center');
     if (w) mcObserver.observe(w, {attributes: true, attributeFilter: ['class']});
 });
+
+// ============================================
+// SECURITY OPS
+// ============================================
+async function fetchSecurity() {
+    try {
+        const r = await fetch('/api/security/status');
+        const d = await r.json();
+        if (d.error) return;
+
+        // Alarm panel
+        const shield = document.getElementById('sec-shield');
+        const stateEl = document.getElementById('sec-panel-state');
+        const badge = document.getElementById('sec-alarm-badge');
+        const st = d.alarm.state || 'unknown';
+        shield.className = 'sec-shield ' + st;
+        const stateLabels = {
+            disarmed: 'DISARMED', armed_away: 'ARMED AWAY', armed_home: 'ARMED HOME',
+            armed_night: 'ARMED NIGHT', arming: 'ARMING...', pending: 'PENDING', triggered: 'TRIGGERED!'
+        };
+        stateEl.textContent = stateLabels[st] || st.toUpperCase();
+        stateEl.style.color = st === 'disarmed' ? '#ef4444' : st.includes('armed') ? '#22c55e' : '#eab308';
+        badge.textContent = stateLabels[st] || st.toUpperCase();
+        badge.className = 'badge ' + (st === 'disarmed' ? 'badge-red' : st.includes('armed') ? 'badge-green' : 'badge-amber');
+
+        // Highlight active arm button
+        document.querySelectorAll('.sec-arm-btn').forEach(b => b.classList.remove('active'));
+        const btnMap = { arm_away: 0, arm_home: 1, arm_night: 2, disarmed: 3 };
+        const btns = document.querySelectorAll('.sec-arm-btn');
+        if (btnMap[st] !== undefined && btns[btnMap[st]]) btns[btnMap[st]].classList.add('active');
+
+        // Locks
+        const locksEl = document.getElementById('sec-locks');
+        locksEl.innerHTML = d.locks.map(l => {
+            const icon = l.state === 'locked' ? 'fa-lock' : l.state === 'unlocked' ? 'fa-lock-open' : 'fa-question';
+            const cls = l.state === 'locked' ? 'locked' : 'unlocked';
+            return `<div class="sec-lock-card" onclick="event.stopPropagation();secToggleLock('${l.entity_id}','${l.state}')">
+                <div class="sec-lock-icon ${cls}"><i class="fas ${icon}"></i></div>
+                <div class="sec-lock-info">
+                    <div class="sec-lock-name">${l.name.replace(' Lock','')}</div>
+                    <div class="sec-lock-state">${l.state}</div>
+                </div>
+            </div>`;
+        }).join('');
+
+        // Garages
+        const garagesEl = document.getElementById('sec-garages');
+        garagesEl.innerHTML = d.garages.map(g => {
+            const icon = g.state === 'closed' ? 'fa-garage' : g.state === 'open' ? 'fa-garage-open' : 'fa-warehouse';
+            const cls = g.state === 'closed' ? 'closed' : g.state === 'open' ? 'open' : 'unavailable';
+            return `<div class="sec-garage-card" onclick="event.stopPropagation();secToggleGarage('${g.entity_id}','${g.state}')">
+                <div class="sec-garage-icon ${cls}"><i class="fas fa-warehouse"></i></div>
+                <div class="sec-garage-info">
+                    <div class="sec-garage-name">${g.name}</div>
+                    <div class="sec-garage-state">${g.state}</div>
+                </div>
+            </div>`;
+        }).join('');
+
+        // Thermostats
+        const thermosEl = document.getElementById('sec-thermos');
+        thermosEl.innerHTML = d.thermostats.map(t => {
+            const action = t.hvac_action || t.state;
+            const actionCls = action === 'heating' ? 'heating' : action === 'cooling' ? 'cooling' : 'idle';
+            const name = t.name.replace('Thermostat ', '');
+            return `<div class="sec-thermo-card">
+                <div class="sec-thermo-name">${name}</div>
+                <div class="sec-thermo-temps">
+                    <span class="sec-thermo-current">${t.current_temp || '--'}°</span>
+                    <span class="sec-thermo-target">→ ${t.target_temp || '--'}°</span>
+                </div>
+                <div class="sec-thermo-action ${actionCls}">${action}</div>
+            </div>`;
+        }).join('');
+
+        // Sensors
+        const sensorsEl = document.getElementById('sec-sensors');
+        const countEl = document.getElementById('sec-sensor-count');
+        countEl.textContent = `${d.open_sensors} OPEN / ${d.total_sensors} TOTAL`;
+        countEl.style.color = d.open_sensors > 0 ? '#ef4444' : 'rgba(34,197,94,0.8)';
+        sensorsEl.innerHTML = d.sensors.map(s => {
+            const st = s.state === 'on' ? 'open' : s.state === 'off' ? 'closed' : s.state;
+            const name = s.name.replace('binary_sensor.','');
+            return `<span class="sec-sensor-pill ${st}">${name}</span>`;
+        }).join('');
+
+    } catch(e) { console.error('Security fetch error:', e); }
+}
+
+async function secAlarm(action) {
+    if (action === 'disarm' && !confirm('Disarm the alarm system?')) return;
+    try {
+        await fetch(`/api/security/alarm/${action}`, { method: 'POST' });
+        setTimeout(fetchSecurity, 2000);
+    } catch(e) { console.error(e); }
+}
+
+async function secToggleLock(entityId, currentState) {
+    const action = currentState === 'locked' ? 'unlock' : 'lock';
+    if (action === 'unlock' && !confirm('Unlock this door?')) return;
+    try {
+        await fetch(`/api/security/lock/${action}`, {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ entity_id: entityId })
+        });
+        setTimeout(fetchSecurity, 2000);
+    } catch(e) { console.error(e); }
+}
+
+async function secToggleGarage(entityId, currentState) {
+    const action = currentState === 'closed' ? 'open' : 'close';
+    if (!confirm(`${action.toUpperCase()} the garage door?`)) return;
+    try {
+        await fetch(`/api/security/garage/${action}`, {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ entity_id: entityId })
+        });
+        setTimeout(fetchSecurity, 3000);
+    } catch(e) { console.error(e); }
+}

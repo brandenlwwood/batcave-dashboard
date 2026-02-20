@@ -1557,4 +1557,176 @@ Return ONLY valid JSON with this format, no other text:
             return {"movies": [], "shows": [], "raw": content}
     except Exception as e:
         return JSONResponse({"error": str(e)}, 500)
+
+
+# ============================================================
+# ADT SECURITY / ALARM.COM INTEGRATION
+# ============================================================
+
+@app.get("/api/security/status")
+async def security_status():
+    """Get full ADT security system status from HA entities."""
+    if not HA_TOKEN:
+        return {"error": "HA not configured"}
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(f"{HA_URL}/api/states", headers=HA_HEADERS)
+            states = resp.json()
+
+        # Build a lookup
+        state_map = {s["entity_id"]: s for s in states}
+
+        # Alarm panel
+        panel = state_map.get("alarm_control_panel.panel", {})
+        alarm = {
+            "state": panel.get("state", "unknown"),
+            "friendly_name": panel.get("attributes", {}).get("friendly_name", "Panel"),
+        }
+
+        # Locks
+        locks = []
+        for eid in ["lock.front_door_lock", "lock.back_door_lock", "lock.patio_door_lock"]:
+            s = state_map.get(eid, {})
+            attrs = s.get("attributes", {})
+            locks.append({
+                "entity_id": eid,
+                "name": attrs.get("friendly_name", eid.split(".")[-1].replace("_", " ").title()),
+                "state": s.get("state", "unknown"),
+            })
+
+        # Garage doors
+        garages = []
+        for eid in ["cover.big_garage", "cover.lil_garage"]:
+            s = state_map.get(eid, {})
+            attrs = s.get("attributes", {})
+            garages.append({
+                "entity_id": eid,
+                "name": attrs.get("friendly_name", eid.split(".")[-1].replace("_", " ").title()),
+                "state": s.get("state", "unknown"),
+            })
+
+        # Thermostats
+        thermostats = []
+        for eid in ["climate.thermostat_main_floor", "climate.thermostat_bathroom",
+                     "climate.thermostat_master_bedroom", "climate.thermostat_girls_bedrooms"]:
+            s = state_map.get(eid, {})
+            attrs = s.get("attributes", {})
+            thermostats.append({
+                "entity_id": eid,
+                "name": attrs.get("friendly_name", eid.split(".")[-1].replace("_", " ").title()),
+                "state": s.get("state", "unknown"),
+                "current_temp": attrs.get("current_temperature"),
+                "target_temp": attrs.get("temperature"),
+                "hvac_action": attrs.get("hvac_action", ""),
+            })
+
+        # Door/window sensors
+        sensors = []
+        sensor_ids = [
+            "binary_sensor.front_door", "binary_sensor.back_door",
+            "binary_sensor.bsmt_door",
+            "binary_sensor.garage_door_1", "binary_sensor.garage_door_2",
+            "binary_sensor.back_win_1", "binary_sensor.back_win_2",
+            "binary_sensor.bsmt_win_1", "binary_sensor.bsmt_win_2", "binary_sensor.bsmt_win_3",
+            "binary_sensor.dining_rm_win_1", "binary_sensor.dining_rm_win_2",
+            "binary_sensor.fam_rm_win_1", "binary_sensor.fam_rm_win_2",
+            "binary_sensor.ofc_win_1", "binary_sensor.ofc_win_2",
+            "binary_sensor.ofc_win_3", "binary_sensor.ofc_win_4",
+            "binary_sensor.gb_front", "binary_sensor.gb_ofc",
+            "binary_sensor.mt_det_bsmt",
+        ]
+        open_count = 0
+        for eid in sensor_ids:
+            s = state_map.get(eid, {})
+            attrs = s.get("attributes", {})
+            st = s.get("state", "unknown")
+            if st == "on":
+                open_count += 1
+            sensors.append({
+                "entity_id": eid,
+                "name": attrs.get("friendly_name", eid.split(".")[-1].replace("_", " ").title()),
+                "state": st,
+            })
+
+        # Lights (ADT-controlled)
+        lights = []
+        for eid in ["light.office_tree", "light.light_plug", "light.living_room_tree"]:
+            s = state_map.get(eid, {})
+            attrs = s.get("attributes", {})
+            lights.append({
+                "entity_id": eid,
+                "name": attrs.get("friendly_name", eid.split(".")[-1].replace("_", " ").title()),
+                "state": s.get("state", "unknown"),
+            })
+
+        return {
+            "alarm": alarm,
+            "locks": locks,
+            "garages": garages,
+            "thermostats": thermostats,
+            "sensors": sensors,
+            "lights": lights,
+            "open_sensors": open_count,
+            "total_sensors": len(sensor_ids),
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/api/security/lock/{action}")
+async def security_lock_action(action: str, request: Request):
+    """Lock/unlock a door."""
+    if not HA_TOKEN:
+        return {"error": "HA not configured"}
+    data = await request.json()
+    entity_id = data.get("entity_id", "")
+    if not entity_id.startswith("lock."):
+        return {"error": "Invalid entity"}
+    service = f"lock/{action}"  # lock/lock or lock/unlock
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(f"{HA_URL}/api/services/{service}",
+                                     headers=HA_HEADERS,
+                                     json={"entity_id": entity_id})
+        return {"ok": True}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/api/security/alarm/{action}")
+async def security_alarm_action(action: str):
+    """Arm/disarm the alarm. Actions: arm_away, arm_home, arm_night, disarm"""
+    if not HA_TOKEN:
+        return {"error": "HA not configured"}
+    service = f"alarm_control_panel/alarm_{action}"
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(f"{HA_URL}/api/services/{service}",
+                                     headers=HA_HEADERS,
+                                     json={"entity_id": "alarm_control_panel.panel"})
+        return {"ok": True}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/api/security/garage/{action}")
+async def security_garage_action(action: str, request: Request):
+    """Open/close garage door."""
+    if not HA_TOKEN:
+        return {"error": "HA not configured"}
+    data = await request.json()
+    entity_id = data.get("entity_id", "")
+    if not entity_id.startswith("cover."):
+        return {"error": "Invalid entity"}
+    service = f"cover/{action}_cover"  # cover/open_cover or cover/close_cover
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(f"{HA_URL}/api/services/{service}",
+                                     headers=HA_HEADERS,
+                                     json={"entity_id": entity_id})
+        return {"ok": True}
+    except Exception as e:
+        return {"error": str(e)}
+
+# --- Static files (mount LAST) ---
 app.mount("/", StaticFiles(directory="static", html=True), name="static")
