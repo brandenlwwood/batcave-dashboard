@@ -1991,3 +1991,66 @@ html, body {
 [class*="-meta"], [class*="-detail"], [class*="-info"], [class*="-stat"], [class*="-desc"] {
     font-size: max(12px, inherit) !important;
 }
+
+/* ===== COMPREHENSIVE READABILITY FIX ===== */
+/* Override ALL small/muted text globally */
+
+/* Media players */
+.media-player-now, .media-player-source { font-size: 13px !important; color: var(--text-secondary) !important; }
+.media-player-name { font-size: 15px !important; }
+.media-player-status { font-size: 13px !important; }
+
+/* Frigate / Motion detection */
+.frigate-camera, .frigate-event-label { font-size: 14px !important; }
+.frigate-event-time, .frigate-event-camera, .frigate-score { font-size: 13px !important; color: var(--text-secondary) !important; }
+
+/* Network topology - VLAN cards */
+.topo-vlan-subnet, .topo-vlan-devices { font-size: 13px !important; color: var(--text-secondary) !important; }
+.topo-iface-name { font-size: 13px !important; }
+.topo-iface-speed, .topo-iface-traffic { font-size: 12px !important; color: var(--text-secondary) !important; }
+.topo-router-version, .topo-router-uptime { font-size: 13px !important; }
+.topo-device-model, .topo-device-ip { font-size: 13px !important; color: var(--text-secondary) !important; }
+
+/* Alfred Neural Net / Health */
+.health-value { font-size: 16px !important; }
+.health-label { font-size: 12px !important; color: var(--text-secondary) !important; letter-spacing: 1px; }
+
+/* Speedtest */
+.speed-value { font-size: 16px !important; }
+.speed-label { font-size: 12px !important; }
+
+/* Scenes / Protocols */
+.scene-label { font-size: 13px !important; }
+
+/* Activities / Family Ops */
+.activity-detail, .activity-time { font-size: 13px !important; color: var(--text-secondary) !important; }
+.activity-name { font-size: 14px !important; }
+
+/* Lights */
+.light-name { font-size: 14px !important; }
+.light-state { font-size: 12px !important; color: var(--text-secondary) !important; }
+
+/* Chat */
+.chat-msg-text { font-size: 14px !important; }
+.chat-msg-time { font-size: 11px !important; }
+
+/* Timers */
+.timer-label { font-size: 13px !important; }
+
+/* Kanban */
+.kanban-item { font-size: 14px !important; }
+
+/* Nuclear option: any text under 12px gets bumped */
+* {
+    min-font-size: 11px;
+}
+
+/* All spans and divs inside widget-body that are small */
+.widget-body span, .widget-body div, .widget-body p, .widget-body td {
+    color: inherit;
+}
+
+/* Brighten anything with muted/secondary color */
+.widget-body [style*="color"], .widget-body .text-muted {
+    color: var(--text-secondary) !important;
+}
