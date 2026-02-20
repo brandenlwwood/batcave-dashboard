@@ -39,6 +39,8 @@ function restoreWidgetStates() {
         Object.entries(states).forEach(([id, collapsed]) => {
             const widget = document.getElementById(id);
             if (widget) {
+                // Weather always expanded
+                if (id === 'widget-weather') { widget.classList.remove('collapsed'); return; }
                 if (collapsed) widget.classList.add('collapsed');
                 else widget.classList.remove('collapsed');
             }
