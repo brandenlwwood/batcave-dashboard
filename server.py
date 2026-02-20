@@ -927,15 +927,44 @@ async def mark_notification_read(notif_id: str):
 
 
 # ============================================================
-# API Routes — Calendar (ICS feeds + Google Calendar)
+# API Routes — Calendar (ICS feeds + Google Calendar API)
 # ============================================================
+
+# Google Calendar API token cache
+_google_token_cache = {"access_token": None, "expires_at": 0}
+
+async def _get_google_access_token():
+    """Get a valid Google access token, refreshing if needed."""
+    import time
+    now = time.time()
+    if _google_token_cache["access_token"] and _google_token_cache["expires_at"] > now + 60:
+        return _google_token_cache["access_token"]
+    
+    client_id = os.getenv("GOOGLE_CLIENT_ID", "")
+    client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "")
+    refresh_token = os.getenv("GOOGLE_REFRESH_TOKEN", "")
+    
+    if not all([client_id, client_secret, refresh_token]):
+        return None
+    
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.post("https://oauth2.googleapis.com/token", data={
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "refresh_token": refresh_token,
+            "grant_type": "refresh_token",
+        })
+        if resp.status_code == 200:
+            data = resp.json()
+            _google_token_cache["access_token"] = data["access_token"]
+            _google_token_cache["expires_at"] = now + data.get("expires_in", 3600)
+            return data["access_token"]
+    return None
 
 @app.get("/api/calendar")
 async def calendar_events():
-    """Fetch and merge events from all calendar sources"""
-    from icalendar import Calendar
+    """Fetch and merge events from ICS feeds + Google Calendar API"""
     from dateutil import tz
-    from dateutil.rrule import rrulestr
     
     eastern = tz.gettz("America/New_York")
     now = datetime.now(tz=eastern)
@@ -943,19 +972,14 @@ async def calendar_events():
     window_end = today_start + timedelta(days=14)  # 2 weeks ahead
     
     all_events = []
+    all_sources = []
     
-    # ICS feed sources
+    # --- Part 1: ICS feed sources (AVC calendars etc.) ---
     ics_feeds = [
         {"url": "http://avc13red.woodu2.com/calendar.ics", "source": "AVC 13 Red", "color": "#e83050"},
         {"url": "http://avc15red.woodu2.com/calendar.ics", "source": "AVC 15 Red", "color": "#8860e8"},
     ]
     
-    # Google Calendar ICS URL (if configured)
-    google_ics = os.getenv("GOOGLE_CALENDAR_ICS", "")
-    if google_ics:
-        ics_feeds.append({"url": google_ics, "source": "Family", "color": "#00b4e8"})
-    
-    # Additional ICS feeds from env (comma-separated)
     extra_ics = os.getenv("EXTRA_ICS_FEEDS", "")
     if extra_ics:
         for i, url in enumerate(extra_ics.split(",")):
@@ -964,13 +988,16 @@ async def calendar_events():
                 ics_feeds.append({"url": url, "source": f"Calendar {i+1}", "color": "#00e8d0"})
     
     async with httpx.AsyncClient(timeout=15) as client:
+        # Fetch ICS feeds
         for feed in ics_feeds:
+            all_sources.append(feed["source"])
             try:
+                from icalendar import Calendar as ICalendar
                 resp = await client.get(feed["url"])
                 if resp.status_code != 200:
                     continue
                 
-                cal = Calendar.from_ical(resp.text)
+                cal = ICalendar.from_ical(resp.text)
                 
                 for component in cal.walk():
                     if component.name != "VEVENT":
@@ -978,7 +1005,6 @@ async def calendar_events():
                     
                     summary = str(component.get("SUMMARY", "No Title"))
                     location = str(component.get("LOCATION", "")) if component.get("LOCATION") else ""
-                    description = str(component.get("DESCRIPTION", "")) if component.get("DESCRIPTION") else ""
                     
                     dtstart = component.get("DTSTART")
                     dtend = component.get("DTEND")
@@ -989,9 +1015,7 @@ async def calendar_events():
                     start = dtstart.dt
                     end = dtend.dt if dtend else None
                     
-                    # Handle date vs datetime
                     if hasattr(start, 'hour'):
-                        # It's a datetime
                         if start.tzinfo is None:
                             start = start.replace(tzinfo=tz.UTC)
                         start = start.astimezone(eastern)
@@ -1001,13 +1025,11 @@ async def calendar_events():
                             end = end.astimezone(eastern)
                         all_day = False
                     else:
-                        # It's a date (all-day event)
                         start = datetime.combine(start, datetime.min.time()).replace(tzinfo=eastern)
                         if end:
                             end = datetime.combine(end, datetime.min.time()).replace(tzinfo=eastern)
                         all_day = True
                     
-                    # Filter to our window
                     if start > window_end or (end and end < today_start) or (not end and start < today_start):
                         continue
                     
@@ -1022,7 +1044,7 @@ async def calendar_events():
                     })
             except Exception as e:
                 all_events.append({
-                    "title": f"⚠ Error loading {feed['source']}",
+                    "title": f"\u26a0 Error loading {feed['source']}",
                     "start": now.isoformat(),
                     "end": None,
                     "all_day": False,
@@ -1030,6 +1052,76 @@ async def calendar_events():
                     "source": feed["source"],
                     "color": "#e8a020",
                 })
+        
+        # --- Part 2: Google Calendar API ---
+        google_token = await _get_google_access_token()
+        if google_token:
+            cal_ids_str = os.getenv("GOOGLE_CALENDAR_IDS", "")
+            google_calendars = {
+                "alfred@saidr.io": {"source": "Alfred", "color": "#00b4e8"},
+                "family12264328603363530032@group.calendar.google.com": {"source": "Family", "color": "#00e8a0"},
+            }
+            
+            # Override with env if set
+            if cal_ids_str:
+                for cid in cal_ids_str.split(","):
+                    cid = cid.strip()
+                    if cid and cid not in google_calendars:
+                        google_calendars[cid] = {"source": cid.split("@")[0][:15], "color": "#00e8d0"}
+            
+            headers = {"Authorization": f"Bearer {google_token}"}
+            time_min = today_start.isoformat()
+            time_max = window_end.isoformat()
+            
+            for cal_id, cal_info in google_calendars.items():
+                all_sources.append(cal_info["source"])
+                try:
+                    import urllib.parse
+                    encoded_id = urllib.parse.quote(cal_id)
+                    url = (f"https://www.googleapis.com/calendar/v3/calendars/{encoded_id}/events"
+                           f"?timeMin={urllib.parse.quote(time_min)}"
+                           f"&timeMax={urllib.parse.quote(time_max)}"
+                           f"&singleEvents=true&orderBy=startTime&maxResults=100")
+                    resp = await client.get(url, headers=headers)
+                    if resp.status_code != 200:
+                        continue
+                    
+                    data = resp.json()
+                    for item in data.get("items", []):
+                        start_info = item.get("start", {})
+                        end_info = item.get("end", {})
+                        
+                        if "dateTime" in start_info:
+                            from dateutil.parser import parse as dt_parse
+                            start_dt = dt_parse(start_info["dateTime"]).astimezone(eastern)
+                            end_dt = dt_parse(end_info["dateTime"]).astimezone(eastern) if "dateTime" in end_info else None
+                            all_day = False
+                        elif "date" in start_info:
+                            start_dt = datetime.strptime(start_info["date"], "%Y-%m-%d").replace(tzinfo=eastern)
+                            end_dt = datetime.strptime(end_info["date"], "%Y-%m-%d").replace(tzinfo=eastern) if "date" in end_info else None
+                            all_day = True
+                        else:
+                            continue
+                        
+                        all_events.append({
+                            "title": item.get("summary", "No Title"),
+                            "start": start_dt.isoformat(),
+                            "end": end_dt.isoformat() if end_dt else None,
+                            "all_day": all_day,
+                            "location": (item.get("location", "") or "")[:100],
+                            "source": cal_info["source"],
+                            "color": cal_info["color"],
+                        })
+                except Exception as e:
+                    all_events.append({
+                        "title": f"\u26a0 Error loading {cal_info['source']}",
+                        "start": now.isoformat(),
+                        "end": None,
+                        "all_day": False,
+                        "location": str(e)[:80],
+                        "source": cal_info["source"],
+                        "color": "#e8a020",
+                    })
     
     # Sort by start time
     all_events.sort(key=lambda e: e["start"])
@@ -1042,7 +1134,7 @@ async def calendar_events():
             days[day_key] = []
         days[day_key].append(evt)
     
-    return {"events": all_events, "by_day": days, "sources": [f["source"] for f in ics_feeds]}
+    return {"events": all_events, "by_day": days, "sources": all_sources}
 
 
 
