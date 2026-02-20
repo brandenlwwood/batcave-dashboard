@@ -29,7 +29,13 @@ function saveWidgetStates() {
 function restoreWidgetStates() {
     try {
         const states = JSON.parse(localStorage.getItem('batcave-widget-states'));
-        if (!states) return; // first visit — all start collapsed
+        if (!states) {
+            // First visit — collapse all except weather
+            document.querySelectorAll('.widget').forEach(w => {
+                if (w.id !== 'widget-weather') w.classList.add('collapsed');
+            });
+            return;
+        }
         Object.entries(states).forEach(([id, collapsed]) => {
             const widget = document.getElementById(id);
             if (widget) {
