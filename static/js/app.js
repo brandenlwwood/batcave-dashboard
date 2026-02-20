@@ -1330,13 +1330,22 @@ async function fetchSecurity() {
             const action = t.hvac_action || t.state;
             const actionCls = action === 'heating' ? 'heating' : action === 'cooling' ? 'cooling' : 'idle';
             const name = t.name.replace('Thermostat ', '');
+            const modeIcons = {heat:'fa-fire',cool:'fa-snowflake',heat_cool:'fa-arrows-left-right',off:'fa-power-off',auto:'fa-arrows-left-right'};
+            const modes = (t.hvac_modes||[]).map(m => {
+                const icon = modeIcons[m]||'fa-circle';
+                const active = t.state===m ? 'active' : '';
+                return `<button class="sec-mode-btn ${active}" onclick="event.stopPropagation();secSetMode('${t.entity_id}','${m}')" title="${m}"><i class="fas ${icon}"></i></button>`;
+            }).join('');
             return `<div class="sec-thermo-card">
                 <div class="sec-thermo-name">${name}</div>
                 <div class="sec-thermo-temps">
+                    <button class="sec-temp-btn" onclick="event.stopPropagation();secAdjustTemp('${t.entity_id}',${(t.target_temp||70)-1})"><i class="fas fa-minus"></i></button>
                     <span class="sec-thermo-current">${t.current_temp || '--'}°</span>
                     <span class="sec-thermo-target">→ ${t.target_temp || '--'}°</span>
+                    <button class="sec-temp-btn" onclick="event.stopPropagation();secAdjustTemp('${t.entity_id}',${(t.target_temp||70)+1})"><i class="fas fa-plus"></i></button>
                 </div>
                 <div class="sec-thermo-action ${actionCls}">${action}</div>
+                <div class="sec-mode-buttons">${modes}</div>
             </div>`;
         }).join('');
 
@@ -1383,5 +1392,26 @@ async function secToggleGarage(entityId, currentState) {
             body: JSON.stringify({ entity_id: entityId })
         });
         setTimeout(fetchSecurity, 3000);
+    } catch(e) { console.error(e); }
+}
+
+
+async function secAdjustTemp(entityId, temp) {
+    try {
+        await fetch('/api/security/climate/set_temp', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ entity_id: entityId, temperature: temp })
+        });
+        setTimeout(fetchSecurity, 2000);
+    } catch(e) { console.error(e); }
+}
+
+async function secSetMode(entityId, mode) {
+    try {
+        await fetch('/api/security/climate/set_mode', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ entity_id: entityId, hvac_mode: mode })
+        });
+        setTimeout(fetchSecurity, 2000);
     } catch(e) { console.error(e); }
 }

@@ -1268,7 +1268,6 @@ async def run_command(cmd):
     return stdout.decode()
 
 
-# --- Static files (mount last) ---
 
 # ===== Media Command Center (Plex + Sonarr + Radarr) =====
 PLEX_URL = os.getenv("PLEX_URL", "http://10.10.1.5:32400")
@@ -1618,6 +1617,9 @@ async def security_status():
                 "current_temp": attrs.get("current_temperature"),
                 "target_temp": attrs.get("temperature"),
                 "hvac_action": attrs.get("hvac_action", ""),
+                "hvac_modes": attrs.get("hvac_modes", []),
+                "min_temp": attrs.get("min_temp", 45),
+                "max_temp": attrs.get("max_temp", 95),
             })
 
         # Door/window sensors
@@ -1724,6 +1726,47 @@ async def security_garage_action(action: str, request: Request):
             resp = await client.post(f"{HA_URL}/api/services/{service}",
                                      headers=HA_HEADERS,
                                      json={"entity_id": entity_id})
+        return {"ok": True}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+
+@app.post("/api/security/climate/set_temp")
+async def climate_set_temp(request: Request):
+    """Set thermostat target temperature."""
+    if not HA_TOKEN:
+        return {"error": "HA not configured"}
+    data = await request.json()
+    entity_id = data.get("entity_id", "")
+    temperature = data.get("temperature")
+    if not entity_id.startswith("climate.") or temperature is None:
+        return {"error": "Invalid params"}
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(f"{HA_URL}/api/services/climate/set_temperature",
+                                     headers=HA_HEADERS,
+                                     json={"entity_id": entity_id, "temperature": float(temperature)})
+        return {"ok": True}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/api/security/climate/set_mode")
+async def climate_set_mode(request: Request):
+    """Set thermostat HVAC mode (heat, cool, heat_cool, off)."""
+    if not HA_TOKEN:
+        return {"error": "HA not configured"}
+    data = await request.json()
+    entity_id = data.get("entity_id", "")
+    hvac_mode = data.get("hvac_mode", "")
+    if not entity_id.startswith("climate.") or not hvac_mode:
+        return {"error": "Invalid params"}
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(f"{HA_URL}/api/services/climate/set_hvac_mode",
+                                     headers=HA_HEADERS,
+                                     json={"entity_id": entity_id, "hvac_mode": hvac_mode})
         return {"ok": True}
     except Exception as e:
         return {"error": str(e)}
