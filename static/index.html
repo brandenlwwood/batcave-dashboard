@@ -58,6 +58,38 @@
 <div class="dashboard">
 
     <!-- Cameras — Full Width -->
+    <div class="widget" id="widget-weather">
+        <div class="widget-header" onclick="toggleWidget('widget-weather')">
+            <div class="widget-header-left">
+                <div class="header-icon-wrap"><i class="fas fa-cloud-bolt"></i></div>
+                <span>ATMOSPHERIC DATA</span>
+            </div>
+            <div class="widget-header-right"><i class="fas fa-chevron-down widget-toggle-icon"></i></div>
+        </div>
+        <div class="widget-body">
+            <div class="weather-display">
+                <div class="weather-main">
+                    <div class="weather-temp"><span id="wx-temp">--</span><span class="unit">°F</span></div>
+                    <div class="weather-desc" id="wx-desc">Acquiring...</div>
+                </div>
+                <div class="weather-stats">
+                    <div class="wx-stat"><span class="wx-label">FEELS</span><span class="wx-value" id="wx-feels">--</span><span class="wx-unit">°F</span></div>
+                    <div class="wx-stat"><span class="wx-label">HUMID</span><span class="wx-value" id="wx-humidity">--</span><span class="wx-unit">%</span></div>
+                    <div class="wx-stat"><span class="wx-label">WIND</span><span class="wx-value" id="wx-wind">--</span><span class="wx-unit">mph</span></div>
+                </div>
+            </div>
+            <div class="weather-forecast">
+                <div class="forecast-day"><div class="fc-label">TODAY</div><div class="fc-temps"><span class="hi" id="wx-today-hi">--</span><span class="sep">/</span><span class="lo" id="wx-today-lo">--</span></div></div>
+                <div class="forecast-day"><div class="fc-label">TOMORROW</div><div class="fc-temps"><span class="hi" id="wx-tmrw-hi">--</span><span class="sep">/</span><span class="lo" id="wx-tmrw-lo">--</span></div></div>
+                <div class="forecast-day"><div class="fc-label">☀ RISE</div><div class="fc-value" id="wx-sunrise">--</div></div>
+                <div class="forecast-day"><div class="fc-label">🌅 SET</div><div class="fc-value" id="wx-sunset">--</div></div>
+            </div>
+            <div class="suggestions" id="wx-suggestions"></div>
+        </div>
+    </div>
+
+    <!-- Family Activities -->
+
     <div class="widget widget-cameras collapsed" id="widget-cameras">
         <div class="widget-header" onclick="toggleWidget('widget-cameras')">
             <div class="widget-header-left">
@@ -132,37 +164,6 @@
     </div>
 
     <!-- Weather -->
-    <div class="widget collapsed" id="widget-weather">
-        <div class="widget-header" onclick="toggleWidget('widget-weather')">
-            <div class="widget-header-left">
-                <div class="header-icon-wrap"><i class="fas fa-cloud-bolt"></i></div>
-                <span>ATMOSPHERIC DATA</span>
-            </div>
-            <div class="widget-header-right"><i class="fas fa-chevron-down widget-toggle-icon"></i></div>
-        </div>
-        <div class="widget-body">
-            <div class="weather-display">
-                <div class="weather-main">
-                    <div class="weather-temp"><span id="wx-temp">--</span><span class="unit">°F</span></div>
-                    <div class="weather-desc" id="wx-desc">Acquiring...</div>
-                </div>
-                <div class="weather-stats">
-                    <div class="wx-stat"><span class="wx-label">FEELS</span><span class="wx-value" id="wx-feels">--</span><span class="wx-unit">°F</span></div>
-                    <div class="wx-stat"><span class="wx-label">HUMID</span><span class="wx-value" id="wx-humidity">--</span><span class="wx-unit">%</span></div>
-                    <div class="wx-stat"><span class="wx-label">WIND</span><span class="wx-value" id="wx-wind">--</span><span class="wx-unit">mph</span></div>
-                </div>
-            </div>
-            <div class="weather-forecast">
-                <div class="forecast-day"><div class="fc-label">TODAY</div><div class="fc-temps"><span class="hi" id="wx-today-hi">--</span><span class="sep">/</span><span class="lo" id="wx-today-lo">--</span></div></div>
-                <div class="forecast-day"><div class="fc-label">TOMORROW</div><div class="fc-temps"><span class="hi" id="wx-tmrw-hi">--</span><span class="sep">/</span><span class="lo" id="wx-tmrw-lo">--</span></div></div>
-                <div class="forecast-day"><div class="fc-label">☀ RISE</div><div class="fc-value" id="wx-sunrise">--</div></div>
-                <div class="forecast-day"><div class="fc-label">🌅 SET</div><div class="fc-value" id="wx-sunset">--</div></div>
-            </div>
-            <div class="suggestions" id="wx-suggestions"></div>
-        </div>
-    </div>
-
-    <!-- Family Activities -->
     <div class="widget collapsed" id="widget-activities">
         <div class="widget-header" onclick="toggleWidget('widget-activities')">
             <div class="widget-header-left">
