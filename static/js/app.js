@@ -1,0 +1,488 @@
+/**
+ * Alfred's Batcave Command Center v2
+ * Phase 1: Cameras, Weather, Infra, Kanban, Health, Frigate
+ * Phase 2: Scenes, Lights, Media, Activities, Voice, Chat
+ */
+
+// ===== WebSocket =====
+let ws = null;
+let wsRetryDelay = 1000;
+
+function connectWebSocket() {
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    ws = new WebSocket(`${proto}//${location.host}/ws`);
+    ws.onopen = () => {
+        wsRetryDelay = 1000;
+        document.getElementById('health-ws').textContent = '✓';
+        setSystemStatus('online', 'ONLINE');
+    };
+    ws.onmessage = (evt) => {
+        try { handleWsMessage(JSON.parse(evt.data)); } catch(e) {}
+    };
+    ws.onclose = () => {
+        document.getElementById('health-ws').textContent = '✗';
+        setSystemStatus('warning', 'RECONNECTING');
+        setTimeout(connectWebSocket, wsRetryDelay);
+        wsRetryDelay = Math.min(wsRetryDelay * 2, 30000);
+    };
+    ws.onerror = () => ws.close();
+}
+
+function handleWsMessage(msg) {
+    switch (msg.type) {
+        case 'kanban_update': renderKanban(msg.data); break;
+        case 'lights_update': renderLights(msg.data); break;
+        case 'media_update': renderMediaPlayers(msg.data); break;
+    }
+}
+
+function setSystemStatus(state, text) {
+    document.getElementById('systemStatus').className = `status-pill ${state}`;
+    document.getElementById('statusText').textContent = text;
+}
+
+// ===== Clock =====
+function updateClock() {
+    document.getElementById('clock').textContent = new Date().toLocaleTimeString('en-US', {
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
+    });
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ===== Camera Feeds =====
+function refreshCameras() {
+    const ts = Date.now();
+    const c1 = document.getElementById('cam1');
+    const c2 = document.getElementById('cam2');
+    if (c1) c1.src = `/api/cameras/1?t=${ts}`;
+    if (c2) c2.src = `/api/cameras/2?t=${ts}`;
+}
+setInterval(refreshCameras, 3000);
+
+function toggleCameraFullscreen(el) {
+    if (el.classList.contains('fullscreen')) {
+        el.classList.remove('fullscreen');
+    } else {
+        el.classList.add('fullscreen');
+    }
+}
+
+// ===== Weather =====
+async function fetchWeather() {
+    try {
+        const data = await (await fetch('/api/weather')).json();
+        if (data.error) return;
+        document.getElementById('wx-temp').textContent = data.current.temp_f;
+        document.getElementById('wx-desc').textContent = data.current.description;
+        document.getElementById('wx-feels').textContent = data.current.feels_like;
+        document.getElementById('wx-humidity').textContent = data.current.humidity;
+        document.getElementById('wx-wind').textContent = data.current.wind_mph;
+        document.getElementById('wx-today-hi').textContent = data.today.high;
+        document.getElementById('wx-today-lo').textContent = data.today.low;
+        document.getElementById('wx-tmrw-hi').textContent = data.tomorrow.high;
+        document.getElementById('wx-tmrw-lo').textContent = data.tomorrow.low;
+        document.getElementById('wx-sunrise').textContent = data.today.sunrise;
+        document.getElementById('wx-sunset').textContent = data.today.sunset;
+        const sugEl = document.getElementById('wx-suggestions');
+        if (data.suggestion?.length) {
+            sugEl.innerHTML = data.suggestion.map(s => `<div class="suggestion-item">${s}</div>`).join('');
+        }
+    } catch(e) { console.error('[Weather]', e); }
+}
+
+// ===== Alfred Health =====
+async function fetchHealth() {
+    try {
+        const data = await (await fetch('/api/health')).json();
+        document.getElementById('health-uptime').textContent = data.uptime || '--';
+        const raw = data.memory?.raw || '';
+        const memEl = document.getElementById('health-memory');
+        const badge = document.getElementById('health-badge');
+        const match = raw.match(/(\d+)%/);
+        if (data.memory?.status === 'healthy') {
+            document.getElementById('health-mem-pct').textContent = match ? match[1]+'%' : 'OK';
+            memEl.className = 'health-stat ok'; badge.textContent = 'OK';
+        } else if (data.memory?.status === 'warning') {
+            document.getElementById('health-mem-pct').textContent = match ? match[1]+'%' : '⚠️';
+            memEl.className = 'health-stat warn'; badge.textContent = 'WARN';
+        } else if (data.memory?.status === 'critical') {
+            document.getElementById('health-mem-pct').textContent = match ? match[1]+'%' : '🚨';
+            memEl.className = 'health-stat crit'; badge.textContent = 'CRIT';
+        }
+    } catch(e) { console.error('[Health]', e); }
+}
+
+// ===== Infrastructure =====
+const INFRA_ICONS = { unraid:'fas fa-hard-drive', proxmox:'fas fa-cubes', mikrotik:'fas fa-network-wired',
+    meraki:'fas fa-wifi', homeassistant:'fas fa-home', frigate:'fas fa-eye' };
+const INFRA_NAMES = { unraid:'Unraid', proxmox:'Proxmox', mikrotik:'MikroTik',
+    meraki:'Meraki', homeassistant:'Home Assistant', frigate:'Frigate NVR' };
+
+async function fetchInfra() {
+    try {
+        const data = await (await fetch('/api/infra/status')).json();
+        document.getElementById('infra-grid').innerHTML = Object.entries(data).map(([key, info]) => {
+            const icon = INFRA_ICONS[key] || 'fas fa-circle';
+            const name = INFRA_NAMES[key] || key;
+            let detail = info.ip || '';
+            if (key === 'mikrotik' && info.cpu_load !== undefined)
+                detail = `CPU: ${info.cpu_load}% | RAM: ${info.memory_used}% | v${info.version}`;
+            if (key === 'meraki' && info.devices_total)
+                detail = `${info.devices_online}/${info.devices_total} devices online`;
+            if (key === 'frigate' && info.cameras !== undefined)
+                detail = `${info.cameras} cameras`;
+            return `<div class="infra-item"><div class="infra-dot ${info.status}"></div>
+                <div><div class="infra-name"><i class="${icon}" style="margin-right:6px;color:var(--text-muted)"></i>${name}</div>
+                <div class="infra-detail">${detail}</div></div></div>`;
+        }).join('');
+    } catch(e) { console.error('[Infra]', e); }
+}
+
+// ===== Frigate Events =====
+async function fetchFrigateEvents() {
+    try {
+        const data = await (await fetch('/api/frigate/events')).json();
+        const list = document.getElementById('frigate-list');
+        const count = document.getElementById('frigate-count');
+        if (data.error || !data.length) {
+            list.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:20px;">No recent events</div>';
+            count.textContent = '0'; return;
+        }
+        count.textContent = data.length;
+        list.innerHTML = data.slice(0,10).map(evt => {
+            const time = evt.start ? new Date(evt.start*1000).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true}) : '--';
+            const date = evt.start ? new Date(evt.start*1000).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '';
+            return `<div class="frigate-event" onclick="playClip('${evt.clip}')">
+                <img class="frigate-thumb" src="${evt.thumbnail}" alt="${evt.label}" loading="lazy" onerror="this.style.display='none'">
+                <div class="frigate-info"><div class="frigate-label">${evt.label||'Unknown'}</div>
+                <div class="frigate-meta">${evt.camera||''} · ${date} ${time}</div></div>
+                <div class="frigate-score">${Math.round(evt.score*100)}%</div></div>`;
+        }).join('');
+    } catch(e) { console.error('[Frigate]', e); }
+}
+
+// ===== Kanban =====
+async function fetchKanban() {
+    try { renderKanban(await (await fetch('/api/kanban')).json()); } catch(e) { console.error('[Kanban]', e); }
+}
+
+function renderKanban(data) {
+    renderKanbanColumn('kanban-todo', data.todo || []);
+    renderKanbanColumn('kanban-progress', data.in_progress || []);
+    renderKanbanColumn('kanban-done', data.done || []);
+}
+
+function renderKanbanColumn(id, items) {
+    const el = document.getElementById(id);
+    if (!items.length) { el.innerHTML = '<div style="color:var(--text-muted);font-size:11px;text-align:center;padding:10px;">Empty</div>'; return; }
+    el.innerHTML = items.map(item => {
+        const p = item.priority || 'medium';
+        const tags = (item.tags || []).map(t => `<span class="tag">${t}</span>`).join(' ');
+        return `<div class="kanban-card priority-${p}">${item.title || item}${tags ? '<div>'+tags+'</div>' : ''}</div>`;
+    }).join('');
+}
+
+// ===== Phase 2: Scenes =====
+async function fetchScenes() {
+    try {
+        const data = await (await fetch('/api/ha/scenes')).json();
+        if (data.error || !Array.isArray(data)) return;
+        document.getElementById('scenes-grid').innerHTML = data.map(s => 
+            `<button class="scene-btn" onclick="triggerScene('${s.entity_id}')">
+                <span class="scene-icon">${s.icon || '🎭'}</span>
+                <span class="scene-name">${s.name.replace(/_/g,' ')}</span>
+            </button>`
+        ).join('');
+    } catch(e) { console.error('[Scenes]', e); }
+}
+
+async function triggerScene(entityId) {
+    try {
+        const btn = event.target.closest('.scene-btn');
+        btn.style.transform = 'scale(0.9)';
+        setTimeout(() => btn.style.transform = '', 200);
+        await fetch(`/api/ha/scene/${entityId}`, { method: 'POST' });
+    } catch(e) { console.error('[Scene trigger]', e); }
+}
+
+// ===== Phase 2: Lights =====
+async function fetchLights() {
+    try {
+        const data = await (await fetch('/api/ha/lights')).json();
+        if (data.error) return;
+        renderLights(data);
+    } catch(e) { console.error('[Lights]', e); }
+}
+
+function renderLights(data) {
+    const grid = document.getElementById('lights-grid');
+    if (!data || typeof data !== 'object') return;
+    grid.innerHTML = Object.entries(data).map(([room, info]) => {
+        const isOn = info.any_on;
+        const onCount = info.lights.filter(l => l.state === 'on').length;
+        const total = info.lights.length;
+        // Average brightness of on lights
+        const onLights = info.lights.filter(l => l.state === 'on' && l.brightness);
+        const avgBright = onLights.length ? Math.round(onLights.reduce((a,l) => a + l.brightness, 0) / onLights.length) : 0;
+        const brightPct = Math.round(avgBright / 255 * 100);
+        return `<div class="light-room ${isOn ? 'on' : ''}" onclick="toggleRoom('${room}', ${isOn})">
+            <div class="light-room-header">
+                <span class="light-room-name">${room}</span>
+                <span class="light-room-icon"><i class="fas fa-lightbulb"></i></span>
+            </div>
+            <div class="light-room-count">${onCount}/${total} on</div>
+            ${isOn ? `<div class="light-room-brightness"><div class="light-room-brightness-fill" style="width:${brightPct}%"></div></div>` : ''}
+        </div>`;
+    }).join('');
+}
+
+async function toggleRoom(room, currentlyOn) {
+    try {
+        await fetch('/api/ha/light/toggle', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ room, action: currentlyOn ? 'off' : 'on' })
+        });
+        // Refresh after small delay
+        setTimeout(fetchLights, 500);
+    } catch(e) { console.error('[Light toggle]', e); }
+}
+
+// ===== Phase 2: Media Players =====
+async function fetchMediaPlayers() {
+    try {
+        const data = await (await fetch('/api/ha/media_players')).json();
+        if (data.error) return;
+        renderMediaPlayers(data);
+    } catch(e) { console.error('[Media]', e); }
+}
+
+function renderMediaPlayers(data) {
+    const list = document.getElementById('media-list');
+    if (!Array.isArray(data) || !data.length) {
+        list.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:10px;">No media devices</div>';
+        return;
+    }
+    // Sort: playing first, then paused, then idle, then unavailable
+    const order = { playing: 0, paused: 1, idle: 2, off: 3, unavailable: 4 };
+    data.sort((a, b) => (order[a.state] ?? 5) - (order[b.state] ?? 5));
+
+    list.innerHTML = data.map(p => {
+        const isActive = ['playing', 'paused'].includes(p.state);
+        const stateClass = p.state === 'unavailable' ? 'unavailable' : p.state;
+        const nowPlaying = p.media_title ? `${p.media_title}${p.media_artist ? ' — '+p.media_artist : ''}` : '';
+        const icon = p.state === 'playing' ? 'fa-play' : p.state === 'paused' ? 'fa-pause' : 'fa-tv';
+        const controls = isActive ? `
+            <div class="media-controls">
+                <button class="media-ctrl-btn" onclick="mediaControl('${p.entity_id}','previous')"><i class="fas fa-backward"></i></button>
+                <button class="media-ctrl-btn" onclick="mediaControl('${p.entity_id}','play_pause')"><i class="fas fa-${p.state==='playing'?'pause':'play'}"></i></button>
+                <button class="media-ctrl-btn" onclick="mediaControl('${p.entity_id}','next')"><i class="fas fa-forward"></i></button>
+                <button class="media-ctrl-btn" onclick="mediaControl('${p.entity_id}','volume_down')"><i class="fas fa-volume-down"></i></button>
+                <button class="media-ctrl-btn" onclick="mediaControl('${p.entity_id}','volume_up')"><i class="fas fa-volume-up"></i></button>
+            </div>` : '';
+        return `<div class="media-player ${stateClass}">
+            <div class="media-player-icon"><i class="fas ${icon}"></i></div>
+            <div class="media-player-info">
+                <div class="media-player-name">${p.name}</div>
+                ${nowPlaying ? `<div class="media-player-now">${nowPlaying}</div>` : ''}
+                <div class="media-player-state">${p.state}${p.app_name ? ' · '+p.app_name : ''}${p.volume_level != null ? ' · Vol '+Math.round(p.volume_level*100)+'%' : ''}</div>
+            </div>
+            ${controls}
+        </div>`;
+    }).join('');
+}
+
+async function mediaControl(entityId, action) {
+    try {
+        await fetch('/api/ha/media/control', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ entity_id: entityId, action })
+        });
+        setTimeout(fetchMediaPlayers, 500);
+    } catch(e) { console.error('[Media control]', e); }
+}
+
+// ===== Phase 2: Family Activities =====
+async function fetchActivities() {
+    try {
+        const data = await (await fetch('/api/activities')).json();
+        const list = document.getElementById('activities-list');
+        if (!data.activities?.length) {
+            list.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:20px;">No suggestions right now</div>';
+            return;
+        }
+        list.innerHTML = data.activities.map(a => 
+            `<div class="activity-item">
+                <div class="activity-icon">${a.icon}</div>
+                <div class="activity-info">
+                    <div class="activity-title">${a.title}</div>
+                    <div class="activity-detail">${a.detail}</div>
+                    <span class="activity-for ${a.for}">${a.for}</span>
+                </div>
+            </div>`
+        ).join('');
+    } catch(e) { console.error('[Activities]', e); }
+}
+
+// ===== Phase 2: Voice / Chat =====
+let isListening = false;
+let recognition = null;
+
+function initVoice() {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) return;
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onresult = (e) => {
+        const text = e.results[0][0].transcript;
+        addChatMessage(text, 'user');
+        sendChatMessage(text);
+    };
+
+    recognition.onend = () => {
+        isListening = false;
+        document.getElementById('voiceBtn').classList.remove('listening');
+        document.getElementById('chatVoiceBtn').classList.remove('listening');
+    };
+
+    recognition.onerror = (e) => {
+        console.error('[Voice]', e.error);
+        isListening = false;
+        document.getElementById('voiceBtn').classList.remove('listening');
+        document.getElementById('chatVoiceBtn').classList.remove('listening');
+    };
+}
+
+function toggleVoice() {
+    if (!recognition) { initVoice(); if (!recognition) return; }
+    if (isListening) {
+        recognition.stop();
+    } else {
+        recognition.start();
+        isListening = true;
+        document.getElementById('voiceBtn').classList.add('listening');
+        document.getElementById('chatVoiceBtn').classList.add('listening');
+    }
+}
+
+function speakText(text) {
+    if (!('speechSynthesis' in window)) return;
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.rate = 1.0;
+    utter.pitch = 0.9;
+    // Try to find a good English voice
+    const voices = speechSynthesis.getVoices();
+    const preferred = voices.find(v => v.name.includes('Google UK English Male') || v.name.includes('Daniel'));
+    if (preferred) utter.voice = preferred;
+    speechSynthesis.speak(utter);
+}
+
+function sendChat() {
+    const input = document.getElementById('chat-input');
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    addChatMessage(text, 'user');
+    sendChatMessage(text);
+}
+
+function addChatMessage(text, sender) {
+    const msgs = document.getElementById('chat-messages');
+    const div = document.createElement('div');
+    div.className = `chat-msg ${sender}`;
+    div.innerHTML = `<div class="chat-bubble">${escapeHtml(text)}</div>`;
+    msgs.appendChild(div);
+    msgs.scrollTop = msgs.scrollHeight;
+}
+
+async function sendChatMessage(text) {
+    try {
+        const resp = await fetch('/api/chat', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ message: text })
+        });
+        const data = await resp.json();
+        // For now show acknowledgment — full relay coming in Phase 3
+        addChatMessage("Message received. Full Telegram relay coming soon — for now, send me messages on Telegram directly. 🎩", 'alfred');
+    } catch(e) {
+        addChatMessage("Connection error. Try Telegram directly.", 'alfred');
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+
+// ===== Frigate Clip Player =====
+function playClip(url) {
+    // Remove existing modal if any
+    const existing = document.getElementById('clip-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'clip-modal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;cursor:pointer;';
+    modal.onclick = () => modal.remove();
+
+    const video = document.createElement('video');
+    video.src = url;
+    video.controls = true;
+    video.autoplay = true;
+    video.style.cssText = 'max-width:90vw;max-height:85vh;border-radius:8px;border:1px solid #1a1d30;';
+    video.onclick = (e) => e.stopPropagation();
+
+    const closeBtn = document.createElement('div');
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = 'position:absolute;top:20px;right:30px;font-size:28px;color:#d4a848;cursor:pointer;z-index:10001;';
+    closeBtn.onclick = () => modal.remove();
+
+    modal.appendChild(video);
+    modal.appendChild(closeBtn);
+    document.body.appendChild(modal);
+
+    // Close on escape key
+    const escHandler = (e) => {
+        if (e.key === 'Escape') { modal.remove(); document.removeEventListener('keydown', escHandler); }
+    };
+    document.addEventListener('keydown', escHandler);
+}
+
+// ===== Init =====
+async function init() {
+    connectWebSocket();
+    initVoice();
+    
+    await Promise.allSettled([
+        fetchWeather(),
+        fetchHealth(),
+        fetchInfra(),
+        fetchFrigateEvents(),
+        fetchKanban(),
+        fetchScenes(),
+        fetchLights(),
+        fetchMediaPlayers(),
+        fetchActivities(),
+    ]);
+
+    // Periodic refreshes
+    setInterval(fetchWeather, 5 * 60 * 1000);
+    setInterval(fetchHealth, 60 * 1000);
+    setInterval(fetchInfra, 30 * 1000);
+    setInterval(fetchFrigateEvents, 15 * 1000);
+    setInterval(fetchKanban, 60 * 1000);
+    setInterval(fetchScenes, 5 * 60 * 1000);
+    setInterval(fetchLights, 10 * 1000);
+    setInterval(fetchMediaPlayers, 10 * 1000);
+    setInterval(fetchActivities, 30 * 60 * 1000);
+}
+
+init();

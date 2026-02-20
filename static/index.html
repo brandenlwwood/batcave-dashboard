@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>BATCAVE // Command Center</title>
+    <link rel="stylesheet" href="/css/batcave.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+</head>
+<body>
+
+<!-- Animated background -->
+<div class="bg-grid"></div>
+<div class="bg-particles" id="particles"></div>
+<div class="scanline-overlay"></div>
+
+<!-- Header -->
+<header class="header">
+    <div class="header-left">
+        <div class="header-logo">
+            <img src="/img/logo.jpg" alt="Wood Command Center" class="logo-img">
+        </div>
+    </div>
+    <div class="header-right">
+        <button class="voice-btn" id="voiceBtn" onclick="toggleVoice()" title="Talk to Alfred">
+            <i class="fas fa-microphone"></i>
+            <div class="voice-ring"></div>
+        </button>
+        <div class="status-pill" id="systemStatus">
+            <div class="status-icon">
+                <div class="pulse-ring"></div>
+                <div class="pulse-dot"></div>
+            </div>
+            <span id="statusText">ONLINE</span>
+        </div>
+        <div class="clock-container">
+            <div class="clock" id="clock"></div>
+            <div class="clock-date" id="clockDate"></div>
+        </div>
+    </div>
+</header>
+
+<!-- Dashboard Grid -->
+<div class="dashboard">
+
+    <!-- Cameras — Full Width -->
+    <div class="widget widget-cameras" id="widget-cameras">
+        <div class="widget-header">
+            <div class="widget-header-left">
+                <div class="header-icon-wrap"><i class="fas fa-video"></i></div>
+                <span>SURVEILLANCE FEEDS</span>
+            </div>
+            <div class="widget-header-right">
+                <span class="badge badge-red"><div class="badge-dot"></div>LIVE</span>
+            </div>
+        </div>
+        <div class="widget-body">
+            <div class="camera-grid">
+                <div class="camera-feed" onclick="toggleCameraFullscreen(this)">
+                    <img id="cam1" src="/api/cameras/1" alt="Driveway">
+                    <div class="camera-hud">
+                        <div class="camera-label">CAM-01 <span class="cam-sep">//</span> DRIVEWAY</div>
+                        <div class="camera-live"><div class="rec-dot"></div>REC</div>
+                    </div>
+                    <div class="camera-corners">
+                        <div class="corner tl"></div><div class="corner tr"></div>
+                        <div class="corner bl"></div><div class="corner br"></div>
+                    </div>
+                    <div class="camera-scanlines"></div>
+                </div>
+                <div class="camera-feed" onclick="toggleCameraFullscreen(this)">
+                    <img id="cam2" src="/api/cameras/2" alt="Rear">
+                    <div class="camera-hud">
+                        <div class="camera-label">CAM-02 <span class="cam-sep">//</span> REAR PERIMETER</div>
+                        <div class="camera-live"><div class="rec-dot"></div>REC</div>
+                    </div>
+                    <div class="camera-corners">
+                        <div class="corner tl"></div><div class="corner tr"></div>
+                        <div class="corner bl"></div><div class="corner br"></div>
+                    </div>
+                    <div class="camera-scanlines"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Scenes -->
+    <div class="widget" id="widget-scenes">
+        <div class="widget-header">
+            <div class="widget-header-left">
+                <div class="header-icon-wrap"><i class="fas fa-bolt"></i></div>
+                <span>PROTOCOLS</span>
+            </div>
+        </div>
+        <div class="widget-body">
+            <div class="scenes-grid" id="scenes-grid">
+                <div class="loading-placeholder">Initializing protocols...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lights -->
+    <div class="widget" id="widget-lights">
+        <div class="widget-header">
+            <div class="widget-header-left">
+                <div class="header-icon-wrap"><i class="fas fa-lightbulb"></i></div>
+                <span>LIGHTING ARRAY</span>
+            </div>
+        </div>
+        <div class="widget-body">
+            <div class="lights-grid" id="lights-grid">
+                <div class="loading-placeholder">Scanning zones...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Weather -->
+    <div class="widget" id="widget-weather">
+        <div class="widget-header">
+            <div class="widget-header-left">
+                <div class="header-icon-wrap"><i class="fas fa-cloud-bolt"></i></div>
+                <span>ATMOSPHERIC DATA</span>
+            </div>
+        </div>
+        <div class="widget-body">
+            <div class="weather-display">
+                <div class="weather-main">
+                    <div class="weather-temp"><span id="wx-temp">--</span><span class="unit">°F</span></div>
+                    <div class="weather-desc" id="wx-desc">Acquiring...</div>
+                </div>
+                <div class="weather-stats">
+                    <div class="wx-stat"><span class="wx-label">FEELS</span><span class="wx-value" id="wx-feels">--</span><span class="wx-unit">°F</span></div>
+                    <div class="wx-stat"><span class="wx-label">HUMID</span><span class="wx-value" id="wx-humidity">--</span><span class="wx-unit">%</span></div>
+                    <div class="wx-stat"><span class="wx-label">WIND</span><span class="wx-value" id="wx-wind">--</span><span class="wx-unit">mph</span></div>
+                </div>
+            </div>
+            <div class="weather-forecast">
+                <div class="forecast-day"><div class="fc-label">TODAY</div><div class="fc-temps"><span class="hi" id="wx-today-hi">--</span><span class="sep">/</span><span class="lo" id="wx-today-lo">--</span></div></div>
+                <div class="forecast-day"><div class="fc-label">TOMORROW</div><div class="fc-temps"><span class="hi" id="wx-tmrw-hi">--</span><span class="sep">/</span><span class="lo" id="wx-tmrw-lo">--</span></div></div>
+                <div class="forecast-day"><div class="fc-label">☀ RISE</div><div class="fc-value" id="wx-sunrise">--</div></div>
+                <div class="forecast-day"><div class="fc-label">🌅 SET</div><div class="fc-value" id="wx-sunset">--</div></div>
+            </div>
+            <div class="suggestions" id="wx-suggestions"></div>
+        </div>
+    </div>
+
+    <!-- Family Activities -->
+    <div class="widget" id="widget-activities">
+        <div class="widget-header">
+            <div class="widget-header-left">
+                <div class="header-icon-wrap"><i class="fas fa-people-group"></i></div>
+                <span>FAMILY OPS</span>
+            </div>
+        </div>
+        <div class="widget-body">
+            <div class="activities-list" id="activities-list">
+                <div class="loading-placeholder">Analyzing conditions...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Media Players -->
+    <div class="widget" id="widget-media">
+        <div class="widget-header">
+            <div class="widget-header-left">
+                <div class="header-icon-wrap"><i class="fas fa-headphones"></i></div>
+                <span>MEDIA ARRAY</span>
+            </div>
+        </div>
+        <div class="widget-body">
+            <div class="media-list" id="media-list">
+                <div class="loading-placeholder">Scanning devices...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Infrastructure -->
+    <div class="widget" id="widget-infra">
+        <div class="widget-header">
+            <div class="widget-header-left">
+                <div class="header-icon-wrap"><i class="fas fa-server"></i></div>
+                <span>SYSTEMS STATUS</span>
+            </div>
+        </div>
+        <div class="widget-body">
+            <div class="infra-grid" id="infra-grid">
+                <div class="loading-placeholder">Running diagnostics...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alfred Health -->
+    <div class="widget" id="widget-health">
+        <div class="widget-header">
+            <div class="widget-header-left">
+                <div class="header-icon-wrap"><i class="fas fa-brain"></i></div>
+                <span>ALFRED NEURAL NET</span>
+            </div>
+            <div class="widget-header-right">
+                <span class="badge badge-green" id="health-badge">NOMINAL</span>
+            </div>
+        </div>
+        <div class="widget-body">
+            <div class="health-grid">
+                <div class="health-stat" id="health-memory">
+                    <div class="health-ring"><svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15.9" class="ring-bg"/><circle cx="18" cy="18" r="15.9" class="ring-fill" id="health-ring-fill" style="stroke-dasharray: 46, 100"/></svg><div class="health-ring-value" id="health-mem-pct">46%</div></div>
+                    <div class="health-label">MEMORY</div>
+                </div>
+                <div class="health-stat">
+                    <div class="health-value" id="health-uptime">--</div>
+                    <div class="health-label">UPTIME</div>
+                </div>
+                <div class="health-stat">
+                    <div class="health-value" id="health-ws">--</div>
+                    <div class="health-label">LINK</div>
+                </div>
+                <div class="health-stat">
+                    <div class="health-value" id="health-model">OPUS</div>
+                    <div class="health-label">MODEL</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Frigate Events -->
+    <div class="widget" id="widget-frigate">
+        <div class="widget-header">
+            <div class="widget-header-left">
+                <div class="header-icon-wrap"><i class="fas fa-crosshairs"></i></div>
+                <span>MOTION DETECTION</span>
+            </div>
+            <div class="widget-header-right">
+                <span class="badge badge-blue" id="frigate-count">0</span>
+            </div>
+        </div>
+        <div class="widget-body">
+            <div class="frigate-list" id="frigate-list">
+                <div class="loading-placeholder">Scanning perimeter...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Talk to Alfred -->
+    <div class="widget" id="widget-chat">
+        <div class="widget-header">
+            <div class="widget-header-left">
+                <div class="header-icon-wrap"><i class="fas fa-terminal"></i></div>
+                <span>ALFRED TERMINAL</span>
+            </div>
+        </div>
+        <div class="widget-body">
+            <div class="chat-messages" id="chat-messages">
+                <div class="chat-msg alfred">
+                    <div class="chat-avatar">A</div>
+                    <div class="chat-bubble">At your service, sir. Systems nominal. 🎩</div>
+                </div>
+            </div>
+            <div class="chat-input-row">
+                <input type="text" id="chat-input" class="chat-input" placeholder="Enter command..." 
+                       onkeydown="if(event.key==='Enter')sendChat()" autocomplete="off">
+                <button class="chat-send-btn" onclick="sendChat()"><i class="fas fa-paper-plane"></i></button>
+                <button class="chat-voice-btn" onclick="toggleVoice()" id="chatVoiceBtn">
+                    <i class="fas fa-microphone"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mission Board — Full Width -->
+    <div class="widget widget-kanban" id="widget-kanban">
+        <div class="widget-header">
+            <div class="widget-header-left">
+                <div class="header-icon-wrap"><i class="fas fa-list-check"></i></div>
+                <span>MISSION BOARD</span>
+            </div>
+        </div>
+        <div class="widget-body">
+            <div class="kanban" id="kanban">
+                <div class="kanban-column">
+                    <div class="kanban-column-title"><span class="kc-dot todo"></span>QUEUED</div>
+                    <div class="kanban-cards" id="kanban-todo"></div>
+                </div>
+                <div class="kanban-column">
+                    <div class="kanban-column-title"><span class="kc-dot progress"></span>ACTIVE</div>
+                    <div class="kanban-cards" id="kanban-progress"></div>
+                </div>
+                <div class="kanban-column">
+                    <div class="kanban-column-title"><span class="kc-dot done"></span>COMPLETE</div>
+                    <div class="kanban-cards" id="kanban-done"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script src="/js/app.js"></script>
+</body>
+</html>

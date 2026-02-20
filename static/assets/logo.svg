@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 120">
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#b8860b"/>
+      <stop offset="50%" stop-color="#d4a848"/>
+      <stop offset="100%" stop-color="#b8860b"/>
+    </linearGradient>
+    <linearGradient id="woodGrain" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8B6914"/>
+      <stop offset="25%" stop-color="#6B4E0A"/>
+      <stop offset="50%" stop-color="#8B6914"/>
+      <stop offset="75%" stop-color="#5C4008"/>
+      <stop offset="100%" stop-color="#8B6914"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="innerGlow">
+      <feGaussianBlur stdDeviation="1.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <!-- Wood ring pattern -->
+    <pattern id="rings" x="0" y="0" width="20" height="4" patternUnits="userSpaceOnUse">
+      <rect width="20" height="4" fill="#8B6914" fill-opacity="0.15"/>
+      <line x1="0" y1="2" x2="20" y2="2" stroke="#5C4008" stroke-width="0.5" stroke-opacity="0.2"/>
+    </pattern>
+  </defs>
+  
+  <!-- Bat symbol - centered, proper proportions -->
+  <g transform="translate(40, 15)" filter="url(#glow)">
+    <!-- Main bat shape with gold gradient -->
+    <path d="M50 8 C50 8 43 16 33 19 C25 21 12 17 5 25 C9 22 15 22 20 26 C14 32 9 40 6 48 C16 38 26 34 36 37 C42 39 47 45 50 50 C53 45 58 39 64 37 C74 34 84 38 94 48 C91 40 86 32 80 26 C85 22 91 22 95 25 C88 17 75 21 67 19 C57 16 50 8 50 8Z"
+          fill="url(#gold)" opacity="0.95"/>
+    <!-- Wood grain overlay on bat -->
+    <path d="M50 8 C50 8 43 16 33 19 C25 21 12 17 5 25 C9 22 15 22 20 26 C14 32 9 40 6 48 C16 38 26 34 36 37 C42 39 47 45 50 50 C53 45 58 39 64 37 C74 34 84 38 94 48 C91 40 86 32 80 26 C85 22 91 22 95 25 C88 17 75 21 67 19 C57 16 50 8 50 8Z"
+          fill="url(#rings)" opacity="0.6"/>
+  </g>
+
+  <!-- WOOD text with tree ring styling -->
+  <g transform="translate(165, 42)">
+    <text font-family="Orbitron, monospace" font-size="42" font-weight="900" fill="url(#gold)" filter="url(#innerGlow)" letter-spacing="8">
+      WOOD
+    </text>
+    <!-- Subtle ring lines through text -->
+    <line x1="0" y1="18" x2="185" y2="18" stroke="#5C4008" stroke-width="0.5" stroke-opacity="0.3"/>
+    <line x1="0" y1="28" x2="185" y2="28" stroke="#5C4008" stroke-width="0.3" stroke-opacity="0.2"/>
+  </g>
+  
+  <!-- Divider line -->
+  <line x1="150" y1="25" x2="150" y2="95" stroke="#d4a848" stroke-width="1" stroke-opacity="0.2"/>
+  
+  <!-- Subtitle -->
+  <text x="168" y="105" font-family="Orbitron, monospace" font-size="8" fill="#7880a0" letter-spacing="4">COMMAND CENTER</text>
+  
+  <!-- Decorative corner accents -->
+  <path d="M10 10 L30 10 M10 10 L10 30" stroke="#d4a848" stroke-width="0.5" stroke-opacity="0.3" fill="none"/>
+  <path d="M390 10 L370 10 M390 10 L390 30" stroke="#d4a848" stroke-width="0.5" stroke-opacity="0.3" fill="none"/>
+  <path d="M10 110 L30 110 M10 110 L10 90" stroke="#d4a848" stroke-width="0.5" stroke-opacity="0.3" fill="none"/>
+  <path d="M390 110 L370 110 M390 110 L390 90" stroke="#d4a848" stroke-width="0.5" stroke-opacity="0.3" fill="none"/>
+</svg>

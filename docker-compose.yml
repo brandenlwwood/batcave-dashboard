@@ -1,0 +1,24 @@
+version: "3.8"
+services:
+  batcave-dashboard:
+    build: .
+    container_name: batcave-dashboard
+    ports:
+      - "8082:8080"
+    restart: always
+    volumes:
+      - ./data:/app/data
+      - ./.ha_token:/app/.ha_token:ro
+    environment:
+      - HA_URL=http://10.10.1.170:8123
+      - HA_TOKEN_FILE=/app/.ha_token
+      - FRIGATE_URL=http://10.10.1.6:5005
+      - REOLINK_URL=http://10.10.1.129
+      - REOLINK_USER=admin
+      - REOLINK_PASS=W00den123
+      - MIKROTIK_HOST=10.10.1.1
+      - MIKROTIK_USER=admin
+      - MIKROTIK_PASS=Capital12345!
+      - MERAKI_API_KEY=481a85be84591163b885b070c5496e00cfb48f35
+      - MERAKI_NET_ID=L_618681998810029905
+      - OPENCLAW_URL=http://10.10.1.50:18789
