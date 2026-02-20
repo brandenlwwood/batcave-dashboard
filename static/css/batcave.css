@@ -1800,3 +1800,42 @@ html, body {
         gap: 8px;
     }
 }
+
+/* Mobile weather fix — prevent cutoff and ensure visibility */
+.weather-stats {
+    flex-wrap: wrap;
+}
+.weather-display {
+    overflow: visible;
+}
+.widget-body {
+    overflow: visible;
+}
+
+/* Portrait phone fix */
+@media (max-width: 480px) {
+    .weather-display {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    .weather-main {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .weather-stats {
+        flex-wrap: wrap;
+        gap: 10px;
+        width: 100%;
+    }
+    .weather-temp {
+        font-size: 32px;
+    }
+    .weather-forecast {
+        flex-wrap: wrap;
+    }
+    .forecast-day {
+        min-width: 45%;
+        border-right: none;
+    }
+}
