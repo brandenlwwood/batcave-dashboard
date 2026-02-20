@@ -1839,3 +1839,21 @@ html, body {
         border-right: none;
     }
 }
+
+/* Debug: ensure weather widget body is always visible when not collapsed */
+#widget-weather:not(.collapsed) .widget-body {
+    max-height: none !important;
+    opacity: 1 !important;
+    overflow: visible !important;
+    padding: 16px !important;
+}
+
+/* Make collapsed widget headers more visible on mobile */
+@media (max-width: 768px) {
+    .widget.collapsed {
+        margin-bottom: 2px;
+    }
+    .widget.collapsed .widget-header {
+        padding: 6px 12px;
+    }
+}
