@@ -119,7 +119,10 @@ function toggleCameraFullscreen(el) {
 // ===== Weather =====
 async function fetchWeather() {
     try {
-        const data = await (await fetch('/api/weather')).json();
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+        const data = await (await fetch('/api/weather', {signal: controller.signal})).json();
+        clearTimeout(timeout);
         if (data.error) return;
         document.getElementById('wx-temp').textContent = data.current.temp_f;
         document.getElementById('wx-desc').textContent = data.current.description;

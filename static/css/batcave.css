@@ -1763,3 +1763,40 @@ html, body {
         gap: 8px;
     }
 }
+
+
+/* Fix: collapsed camera widget shouldn't take space */
+.widget.collapsed {
+    min-height: 0 !important;
+}
+.widget.collapsed .widget-body {
+    max-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+    opacity: 0 !important;
+}
+
+/* Fix: weather mobile responsive */
+@media (max-width: 768px) {
+    .weather-display {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    .weather-main {
+        width: 100%;
+        justify-content: space-between;
+    }
+    .weather-temp {
+        font-size: 36px;
+    }
+    .weather-stats {
+        width: 100%;
+        justify-content: space-between;
+    }
+    .weather-forecast {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 8px;
+    }
+}
