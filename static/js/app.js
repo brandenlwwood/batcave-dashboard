@@ -549,9 +549,38 @@ async function loadChatHistory() {
 
 
 // ===== Calendar Widget =====
+let calStartDate = null; // null = today
+const CAL_WINDOW_DAYS = 30;
+
+function calDateStr(d) {
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function calGetStart() {
+    if (calStartDate) return new Date(calStartDate + 'T00:00:00');
+    const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+function calNav(offset) {
+    const cur = calGetStart();
+    cur.setDate(cur.getDate() + offset);
+    calStartDate = calDateStr(cur);
+    fetchCalendar();
+}
+function calGoToday() {
+    calStartDate = null;
+    fetchCalendar();
+}
+function calPickDate() {
+    const picker = document.getElementById('cal-date-picker');
+    if (picker) { picker.showPicker ? picker.showPicker() : picker.click(); }
+}
+function calOnDatePick(val) {
+    if (val) { calStartDate = val; fetchCalendar(); }
+}
+
 async function fetchCalendar() {
     try {
-        const data = await (await fetch('/api/calendar')).json();
+        const startParam = calStartDate || calDateStr(new Date());
+        const data = await (await fetch(`/api/calendar?start=${startParam}&days=${CAL_WINDOW_DAYS}`)).json();
         const view = document.getElementById('calendar-view');
         const sourcePills = document.getElementById('cal-sources');
         
@@ -562,16 +591,34 @@ async function fetchCalendar() {
             ).join('');
         }
         
+        // Navigation bar
+        const rangeStart = calGetStart();
+        const rangeEnd = new Date(rangeStart);
+        rangeEnd.setDate(rangeEnd.getDate() + CAL_WINDOW_DAYS - 1);
+        const fmtOpts = { month: 'short', day: 'numeric' };
+        const rangeLabel = rangeStart.toLocaleDateString('en-US', fmtOpts) + ' \u2013 ' + rangeEnd.toLocaleDateString('en-US', {...fmtOpts, year: 'numeric'});
+        
+        let navHtml = `<div class="cal-nav">
+            <button class="cal-nav-btn" onclick="calNav(-${CAL_WINDOW_DAYS})" title="Previous ${CAL_WINDOW_DAYS} days"><i class="fas fa-angles-left"></i></button>
+            <button class="cal-nav-btn" onclick="calNav(-7)" title="Back 1 week"><i class="fas fa-chevron-left"></i></button>
+            <button class="cal-nav-btn cal-nav-today" onclick="calGoToday()" title="Jump to today"><i class="fas fa-crosshairs"></i> TODAY</button>
+            <span class="cal-nav-range">${rangeLabel}</span>
+            <input type="date" id="cal-date-picker" class="cal-date-picker" value="${startParam}" onchange="calOnDatePick(this.value)">
+            <button class="cal-nav-btn" onclick="calPickDate()" title="Pick a date"><i class="fas fa-calendar-alt"></i></button>
+            <button class="cal-nav-btn" onclick="calNav(7)" title="Forward 1 week"><i class="fas fa-chevron-right"></i></button>
+            <button class="cal-nav-btn" onclick="calNav(${CAL_WINDOW_DAYS})" title="Next ${CAL_WINDOW_DAYS} days"><i class="fas fa-angles-right"></i></button>
+        </div>`;
+        
         if (!data.events?.length) {
-            view.innerHTML = '<div class="loading-placeholder">No upcoming events</div>';
+            view.innerHTML = navHtml + '<div class="loading-placeholder">No events in this window</div>';
             return;
         }
         
         const byDay = data.by_day || {};
-        const today = new Date().toISOString().slice(0, 10);
-        const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+        const today = calDateStr(new Date());
+        const tomorrow = calDateStr(new Date(Date.now() + 86400000));
         
-        let html = '<div class="cal-timeline">';
+        let html = navHtml + '<div class="cal-timeline">';
         
         const dayKeys = Object.keys(byDay).sort();
         for (const dayKey of dayKeys) {
@@ -598,7 +645,7 @@ async function fetchCalendar() {
                 let endStr = '';
                 if (evt.end && !evt.all_day) {
                     const endDt = new Date(evt.end);
-                    endStr = ' – ' + endDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                    endStr = ' \u2013 ' + endDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
                 }
                 
                 html += `<div class="cal-event" style="border-left-color: ${evt.color || '#00b4e8'}">
@@ -997,74 +1044,7 @@ async function loadChatHistory() {
 }
 
 
-// ===== Calendar Widget =====
-async function fetchCalendar() {
-    try {
-        const data = await (await fetch('/api/calendar')).json();
-        const view = document.getElementById('calendar-view');
-        const sourcePills = document.getElementById('cal-sources');
-        
-        // Source pills
-        if (data.sources?.length) {
-            sourcePills.innerHTML = data.sources.map(s => 
-                `<span class="cal-source-pill">${s}</span>`
-            ).join('');
-        }
-        
-        if (!data.events?.length) {
-            view.innerHTML = '<div class="loading-placeholder">No upcoming events</div>';
-            return;
-        }
-        
-        const byDay = data.by_day || {};
-        const today = new Date().toISOString().slice(0, 10);
-        const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
-        
-        let html = '<div class="cal-timeline">';
-        
-        const dayKeys = Object.keys(byDay).sort();
-        for (const dayKey of dayKeys) {
-            const events = byDay[dayKey];
-            const dayDate = new Date(dayKey + 'T12:00:00');
-            
-            let dayLabel;
-            if (dayKey === today) dayLabel = 'TODAY';
-            else if (dayKey === tomorrow) dayLabel = 'TOMORROW';
-            else dayLabel = dayDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase();
-            
-            const isToday = dayKey === today;
-            
-            html += `<div class="cal-day ${isToday ? 'cal-today' : ''}">
-                <div class="cal-day-header">
-                    <span class="cal-day-label">${dayLabel}</span>
-                    <span class="cal-day-count">${events.length} event${events.length !== 1 ? 's' : ''}</span>
-                </div>
-                <div class="cal-events">`;
-            
-            for (const evt of events) {
-                const startDt = new Date(evt.start);
-                const timeStr = evt.all_day ? 'ALL DAY' : startDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-                let endStr = '';
-                if (evt.end && !evt.all_day) {
-                    const endDt = new Date(evt.end);
-                    endStr = ' – ' + endDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-                }
-                
-                html += `<div class="cal-event" style="border-left-color: ${evt.color || '#00b4e8'}">
-                    <div class="cal-event-time">${timeStr}${endStr}</div>
-                    <div class="cal-event-title">${escapeHtml(evt.title)}</div>
-                    ${evt.location ? `<div class="cal-event-location"><i class="fas fa-map-pin"></i> ${escapeHtml(evt.location)}</div>` : ''}
-                    <span class="cal-event-source" style="color: ${evt.color || '#00b4e8'}">${evt.source}</span>
-                </div>`;
-            }
-            
-            html += '</div></div>';
-        }
-        
-        html += '</div>';
-        view.innerHTML = html;
-    } catch(e) { console.error('[Calendar]', e); }
-}
+
 
 
 // ===== Init =====

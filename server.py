@@ -962,14 +962,21 @@ async def _get_google_access_token():
     return None
 
 @app.get("/api/calendar")
-async def calendar_events():
-    """Fetch and merge events from ICS feeds + Google Calendar API"""
+async def calendar_events(start: str = None, days: int = 30):
+    """Fetch and merge events from ICS feeds. start=YYYY-MM-DD, days=window size"""
     from dateutil import tz
     
     eastern = tz.gettz("America/New_York")
     now = datetime.now(tz=eastern)
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    window_end = today_start + timedelta(days=14)  # 2 weeks ahead
+    if start:
+        try:
+            today_start = datetime.strptime(start, "%Y-%m-%d").replace(tzinfo=eastern)
+        except ValueError:
+            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    else:
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    days = max(1, min(days, 90))  # clamp 1-90
+    window_end = today_start + timedelta(days=days)
     
     all_events = []
     all_sources = []
