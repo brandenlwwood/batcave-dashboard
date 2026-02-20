@@ -14,7 +14,6 @@
 
 <!-- Animated background -->
 <div class="bg-grid"></div>
-<div class="bg-particles" id="particles"></div>
 <div class="scanline-overlay"></div>
 
 <!-- Header -->
@@ -43,23 +42,36 @@
     </div>
 </header>
 
+<!-- Sticky News Ticker -->
+<div class="news-sticky" id="news-sticky">
+    <div class="news-sticky-label"><i class="fas fa-rss"></i> <span id="news-topic">INTEL</span></div>
+    <div class="news-ticker-container">
+        <div class="news-ticker" id="news-ticker">
+            <div class="loading-placeholder" style="padding:0;font-size:11px;">Acquiring intelligence...</div>
+        </div>
+    </div>
+    <button class="news-expand-btn" onclick="toggleNewsPanel()"><i class="fas fa-chevron-down" id="news-expand-icon"></i></button>
+</div>
+<div class="news-articles-panel" id="news-articles" style="display:none;"></div>
+
 <!-- Dashboard Grid -->
 <div class="dashboard">
 
     <!-- Cameras — Full Width -->
-    <div class="widget widget-cameras" id="widget-cameras">
-        <div class="widget-header">
+    <div class="widget widget-cameras collapsed" id="widget-cameras">
+        <div class="widget-header" onclick="toggleWidget('widget-cameras')">
             <div class="widget-header-left">
                 <div class="header-icon-wrap"><i class="fas fa-video"></i></div>
                 <span>SURVEILLANCE FEEDS</span>
             </div>
             <div class="widget-header-right">
                 <span class="badge badge-red"><div class="badge-dot"></div>LIVE</span>
+                <i class="fas fa-chevron-down widget-toggle-icon"></i>
             </div>
         </div>
         <div class="widget-body">
             <div class="camera-grid">
-                <div class="camera-feed" onclick="toggleCameraFullscreen(this)">
+                <div class="camera-feed" onclick="event.stopPropagation(); toggleCameraFullscreen(this)">
                     <img id="cam1" src="/api/cameras/1" alt="Driveway">
                     <div class="camera-hud">
                         <div class="camera-label">CAM-01 <span class="cam-sep">//</span> DRIVEWAY</div>
@@ -71,7 +83,7 @@
                     </div>
                     <div class="camera-scanlines"></div>
                 </div>
-                <div class="camera-feed" onclick="toggleCameraFullscreen(this)">
+                <div class="camera-feed" onclick="event.stopPropagation(); toggleCameraFullscreen(this)">
                     <img id="cam2" src="/api/cameras/2" alt="Rear">
                     <div class="camera-hud">
                         <div class="camera-label">CAM-02 <span class="cam-sep">//</span> REAR PERIMETER</div>
@@ -88,12 +100,13 @@
     </div>
 
     <!-- Quick Scenes -->
-    <div class="widget" id="widget-scenes">
-        <div class="widget-header">
+    <div class="widget collapsed" id="widget-scenes">
+        <div class="widget-header" onclick="toggleWidget('widget-scenes')">
             <div class="widget-header-left">
                 <div class="header-icon-wrap"><i class="fas fa-bolt"></i></div>
                 <span>PROTOCOLS</span>
             </div>
+            <div class="widget-header-right"><i class="fas fa-chevron-down widget-toggle-icon"></i></div>
         </div>
         <div class="widget-body">
             <div class="scenes-grid" id="scenes-grid">
@@ -103,12 +116,13 @@
     </div>
 
     <!-- Lights -->
-    <div class="widget" id="widget-lights">
-        <div class="widget-header">
+    <div class="widget collapsed" id="widget-lights">
+        <div class="widget-header" onclick="toggleWidget('widget-lights')">
             <div class="widget-header-left">
                 <div class="header-icon-wrap"><i class="fas fa-lightbulb"></i></div>
                 <span>LIGHTING ARRAY</span>
             </div>
+            <div class="widget-header-right"><i class="fas fa-chevron-down widget-toggle-icon"></i></div>
         </div>
         <div class="widget-body">
             <div class="lights-grid" id="lights-grid">
@@ -118,12 +132,13 @@
     </div>
 
     <!-- Weather -->
-    <div class="widget" id="widget-weather">
-        <div class="widget-header">
+    <div class="widget collapsed" id="widget-weather">
+        <div class="widget-header" onclick="toggleWidget('widget-weather')">
             <div class="widget-header-left">
                 <div class="header-icon-wrap"><i class="fas fa-cloud-bolt"></i></div>
                 <span>ATMOSPHERIC DATA</span>
             </div>
+            <div class="widget-header-right"><i class="fas fa-chevron-down widget-toggle-icon"></i></div>
         </div>
         <div class="widget-body">
             <div class="weather-display">
@@ -148,12 +163,13 @@
     </div>
 
     <!-- Family Activities -->
-    <div class="widget" id="widget-activities">
-        <div class="widget-header">
+    <div class="widget collapsed" id="widget-activities">
+        <div class="widget-header" onclick="toggleWidget('widget-activities')">
             <div class="widget-header-left">
                 <div class="header-icon-wrap"><i class="fas fa-people-group"></i></div>
                 <span>FAMILY OPS</span>
             </div>
+            <div class="widget-header-right"><i class="fas fa-chevron-down widget-toggle-icon"></i></div>
         </div>
         <div class="widget-body">
             <div class="activities-list" id="activities-list">
@@ -163,12 +179,13 @@
     </div>
 
     <!-- Media Players -->
-    <div class="widget" id="widget-media">
-        <div class="widget-header">
+    <div class="widget collapsed" id="widget-media">
+        <div class="widget-header" onclick="toggleWidget('widget-media')">
             <div class="widget-header-left">
                 <div class="header-icon-wrap"><i class="fas fa-headphones"></i></div>
                 <span>MEDIA ARRAY</span>
             </div>
+            <div class="widget-header-right"><i class="fas fa-chevron-down widget-toggle-icon"></i></div>
         </div>
         <div class="widget-body">
             <div class="media-list" id="media-list">
@@ -178,12 +195,13 @@
     </div>
 
     <!-- Infrastructure -->
-    <div class="widget" id="widget-infra">
-        <div class="widget-header">
+    <div class="widget collapsed" id="widget-infra">
+        <div class="widget-header" onclick="toggleWidget('widget-infra')">
             <div class="widget-header-left">
                 <div class="header-icon-wrap"><i class="fas fa-server"></i></div>
                 <span>SYSTEMS STATUS</span>
             </div>
+            <div class="widget-header-right"><i class="fas fa-chevron-down widget-toggle-icon"></i></div>
         </div>
         <div class="widget-body">
             <div class="infra-grid" id="infra-grid">
@@ -193,14 +211,15 @@
     </div>
 
     <!-- Alfred Health -->
-    <div class="widget" id="widget-health">
-        <div class="widget-header">
+    <div class="widget collapsed" id="widget-health">
+        <div class="widget-header" onclick="toggleWidget('widget-health')">
             <div class="widget-header-left">
                 <div class="header-icon-wrap"><i class="fas fa-brain"></i></div>
                 <span>ALFRED NEURAL NET</span>
             </div>
             <div class="widget-header-right">
                 <span class="badge badge-green" id="health-badge">NOMINAL</span>
+                <i class="fas fa-chevron-down widget-toggle-icon"></i>
             </div>
         </div>
         <div class="widget-body">
@@ -226,14 +245,15 @@
     </div>
 
     <!-- Frigate Events -->
-    <div class="widget" id="widget-frigate">
-        <div class="widget-header">
+    <div class="widget collapsed" id="widget-frigate">
+        <div class="widget-header" onclick="toggleWidget('widget-frigate')">
             <div class="widget-header-left">
                 <div class="header-icon-wrap"><i class="fas fa-crosshairs"></i></div>
                 <span>MOTION DETECTION</span>
             </div>
             <div class="widget-header-right">
                 <span class="badge badge-blue" id="frigate-count">0</span>
+                <i class="fas fa-chevron-down widget-toggle-icon"></i>
             </div>
         </div>
         <div class="widget-body">
@@ -243,63 +263,16 @@
         </div>
     </div>
 
-    <!-- Talk to Alfred -->
-    <div class="widget" id="widget-chat">
-        <div class="widget-header">
-            <div class="widget-header-left">
-                <div class="header-icon-wrap"><i class="fas fa-terminal"></i></div>
-                <span>ALFRED TERMINAL</span>
-            </div>
-        </div>
-        <div class="widget-body">
-            <div class="chat-messages" id="chat-messages">
-                <div class="chat-msg alfred">
-                    <div class="chat-avatar">A</div>
-                    <div class="chat-bubble">At your service, sir. Systems nominal. 🎩</div>
-                </div>
-            </div>
-            <div class="chat-input-row">
-                <input type="text" id="chat-input" class="chat-input" placeholder="Enter command..." 
-                       onkeydown="if(event.key==='Enter')sendChat()" autocomplete="off">
-                <button class="chat-send-btn" onclick="sendChat()"><i class="fas fa-paper-plane"></i></button>
-                <button class="chat-voice-btn" onclick="toggleVoice()" id="chatVoiceBtn">
-                    <i class="fas fa-microphone"></i>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- News Ticker — Full Width -->
-    <div class="widget widget-news" id="widget-news" style="grid-column: span 3;">
-        <div class="widget-header">
-            <div class="widget-header-left">
-                <div class="header-icon-wrap"><i class="fas fa-rss"></i></div>
-                <span>INTEL FEED</span>
-            </div>
-            <div class="widget-header-right">
-                <span class="badge badge-blue" id="news-topic">SCANNING</span>
-            </div>
-        </div>
-        <div class="widget-body" style="padding: 0;">
-            <div class="news-ticker-container">
-                <div class="news-ticker" id="news-ticker">
-                    <div class="loading-placeholder">Acquiring intelligence...</div>
-                </div>
-            </div>
-            <div class="news-articles" id="news-articles" style="display:none;">
-            </div>
-        </div>
-    </div>
-
     <!-- Network Topology -->
-    <div class="widget widget-topology" id="widget-topology">
-        <div class="widget-header">
+    <div class="widget collapsed" id="widget-topology">
+        <div class="widget-header" onclick="toggleWidget('widget-topology')">
             <div class="widget-header-left">
                 <div class="header-icon-wrap"><i class="fas fa-diagram-project"></i></div>
                 <span>NETWORK MAP</span>
             </div>
             <div class="widget-header-right">
                 <span class="badge badge-green" id="topo-device-count">0</span>
+                <i class="fas fa-chevron-down widget-toggle-icon"></i>
             </div>
         </div>
         <div class="widget-body">
@@ -310,16 +283,17 @@
     </div>
 
     <!-- Speedtest History -->
-    <div class="widget" id="widget-speedtest">
-        <div class="widget-header">
+    <div class="widget collapsed" id="widget-speedtest">
+        <div class="widget-header" onclick="toggleWidget('widget-speedtest')">
             <div class="widget-header-left">
                 <div class="header-icon-wrap"><i class="fas fa-gauge-high"></i></div>
                 <span>BANDWIDTH</span>
             </div>
             <div class="widget-header-right">
-                <button class="speed-run-btn" id="speedtest-btn" onclick="runSpeedtest()">
+                <button class="speed-run-btn" id="speedtest-btn" onclick="event.stopPropagation(); runSpeedtest()">
                     <i class="fas fa-play"></i> RUN
                 </button>
+                <i class="fas fa-chevron-down widget-toggle-icon"></i>
             </div>
         </div>
         <div class="widget-body">
@@ -345,14 +319,15 @@
     </div>
 
     <!-- Notification Center -->
-    <div class="widget" id="widget-notifications">
-        <div class="widget-header">
+    <div class="widget collapsed" id="widget-notifications">
+        <div class="widget-header" onclick="toggleWidget('widget-notifications')">
             <div class="widget-header-left">
                 <div class="header-icon-wrap"><i class="fas fa-bell"></i></div>
                 <span>ALERT LOG</span>
             </div>
             <div class="widget-header-right">
                 <span class="badge badge-amber" id="notif-count" style="display:none;">0</span>
+                <i class="fas fa-chevron-down widget-toggle-icon"></i>
             </div>
         </div>
         <div class="widget-body">
@@ -363,37 +338,66 @@
     </div>
 
     <!-- Quick Timers -->
-    <div class="widget" id="widget-timers">
-        <div class="widget-header">
+    <div class="widget collapsed" id="widget-timers">
+        <div class="widget-header" onclick="toggleWidget('widget-timers')">
             <div class="widget-header-left">
                 <div class="header-icon-wrap"><i class="fas fa-stopwatch"></i></div>
                 <span>QUICK TIMERS</span>
             </div>
+            <div class="widget-header-right"><i class="fas fa-chevron-down widget-toggle-icon"></i></div>
         </div>
         <div class="widget-body">
             <div class="timer-presets" id="timer-presets">
-                <button class="timer-preset-btn" onclick="startTimer(5, 'Quick Break')">5m</button>
-                <button class="timer-preset-btn" onclick="startTimer(10, 'Focus')">10m</button>
-                <button class="timer-preset-btn" onclick="startTimer(15, 'Homework')">15m</button>
-                <button class="timer-preset-btn" onclick="startTimer(25, 'Pomodoro')">25m</button>
-                <button class="timer-preset-btn" onclick="startTimer(30, 'Cooking')">30m</button>
-                <button class="timer-preset-btn" onclick="startTimer(60, '1 Hour')">60m</button>
+                <button class="timer-preset-btn" onclick="event.stopPropagation(); startTimer(5, 'Quick Break')">5m</button>
+                <button class="timer-preset-btn" onclick="event.stopPropagation(); startTimer(10, 'Focus')">10m</button>
+                <button class="timer-preset-btn" onclick="event.stopPropagation(); startTimer(15, 'Homework')">15m</button>
+                <button class="timer-preset-btn" onclick="event.stopPropagation(); startTimer(25, 'Pomodoro')">25m</button>
+                <button class="timer-preset-btn" onclick="event.stopPropagation(); startTimer(30, 'Cooking')">30m</button>
+                <button class="timer-preset-btn" onclick="event.stopPropagation(); startTimer(60, '1 Hour')">60m</button>
                 <div class="timer-custom">
-                    <input type="number" id="timer-custom-min" class="timer-custom-input" placeholder="Min" min="1" max="180">
-                    <button class="timer-preset-btn timer-go" onclick="startCustomTimer()"><i class="fas fa-play"></i></button>
+                    <input type="number" id="timer-custom-min" class="timer-custom-input" placeholder="Min" min="1" max="180" onclick="event.stopPropagation()">
+                    <button class="timer-preset-btn timer-go" onclick="event.stopPropagation(); startCustomTimer()"><i class="fas fa-play"></i></button>
                 </div>
             </div>
             <div class="active-timers" id="active-timers"></div>
         </div>
     </div>
 
+    <!-- Talk to Alfred -->
+    <div class="widget collapsed" id="widget-chat">
+        <div class="widget-header" onclick="toggleWidget('widget-chat')">
+            <div class="widget-header-left">
+                <div class="header-icon-wrap"><i class="fas fa-terminal"></i></div>
+                <span>ALFRED TERMINAL</span>
+            </div>
+            <div class="widget-header-right"><i class="fas fa-chevron-down widget-toggle-icon"></i></div>
+        </div>
+        <div class="widget-body">
+            <div class="chat-messages" id="chat-messages">
+                <div class="chat-msg alfred">
+                    <div class="chat-avatar">A</div>
+                    <div class="chat-bubble">At your service, sir. Systems nominal. 🎩</div>
+                </div>
+            </div>
+            <div class="chat-input-row">
+                <input type="text" id="chat-input" class="chat-input" placeholder="Enter command..." 
+                       onkeydown="if(event.key==='Enter')sendChat()" autocomplete="off" onclick="event.stopPropagation()">
+                <button class="chat-send-btn" onclick="event.stopPropagation(); sendChat()"><i class="fas fa-paper-plane"></i></button>
+                <button class="chat-voice-btn" onclick="event.stopPropagation(); toggleVoice()" id="chatVoiceBtn">
+                    <i class="fas fa-microphone"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Mission Board — Full Width -->
-    <div class="widget widget-kanban" id="widget-kanban">
-        <div class="widget-header">
+    <div class="widget widget-kanban collapsed" id="widget-kanban">
+        <div class="widget-header" onclick="toggleWidget('widget-kanban')">
             <div class="widget-header-left">
                 <div class="header-icon-wrap"><i class="fas fa-list-check"></i></div>
                 <span>MISSION BOARD</span>
             </div>
+            <div class="widget-header-right"><i class="fas fa-chevron-down widget-toggle-icon"></i></div>
         </div>
         <div class="widget-body">
             <div class="kanban" id="kanban">

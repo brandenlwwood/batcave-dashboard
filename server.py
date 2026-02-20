@@ -745,10 +745,10 @@ async def speedtest_run():
             # Normalize — speedtest-cli vs ookla speedtest have different formats
             entry = {
                 "timestamp": datetime.now().isoformat(),
-                "download_mbps": round(data.get("download", 0) / 1_000_000, 1) if data.get("download", 0) > 1000 else round(data.get("download", {}).get("bandwidth", 0) * 8 / 1_000_000, 1),
-                "upload_mbps": round(data.get("upload", 0) / 1_000_000, 1) if data.get("upload", 0) > 1000 else round(data.get("upload", {}).get("bandwidth", 0) * 8 / 1_000_000, 1),
-                "ping_ms": round(data.get("ping", data.get("ping", {}).get("latency", 0)), 1) if isinstance(data.get("ping"), (int, float)) else round(data.get("ping", {}).get("latency", 0), 1),
-                "server": data.get("server", {}).get("name", data.get("server", {}).get("host", "?")),
+                "download_mbps": round(data["download"] / 1_000_000, 1) if isinstance(data.get("download"), (int, float)) else round(data.get("download", {}).get("bandwidth", 0) * 8 / 1_000_000, 1),
+                "upload_mbps": round(data["upload"] / 1_000_000, 1) if isinstance(data.get("upload"), (int, float)) else round(data.get("upload", {}).get("bandwidth", 0) * 8 / 1_000_000, 1),
+                "ping_ms": round(data["ping"], 1) if isinstance(data.get("ping"), (int, float)) else round(data.get("ping", {}).get("latency", 0), 1),
+                "server": data.get("server", {}).get("name", "?") if isinstance(data.get("server"), dict) else str(data.get("server", "?")),
             }
             
             # Append to history

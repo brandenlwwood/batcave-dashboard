@@ -4,6 +4,37 @@
  * Phase 2: Scenes, Lights, Media, Activities, Voice, Chat
  */
 
+
+// ===== Collapsible Widgets =====
+function toggleWidget(id) {
+    const widget = document.getElementById(id);
+    if (!widget) return;
+    widget.classList.toggle('collapsed');
+    saveWidgetStates();
+}
+
+function saveWidgetStates() {
+    const states = {};
+    document.querySelectorAll('.widget[id]').forEach(w => {
+        states[w.id] = w.classList.contains('collapsed');
+    });
+    localStorage.setItem('batcave-widget-states', JSON.stringify(states));
+}
+
+function restoreWidgetStates() {
+    try {
+        const states = JSON.parse(localStorage.getItem('batcave-widget-states'));
+        if (!states) return; // first visit — all start collapsed
+        Object.entries(states).forEach(([id, collapsed]) => {
+            const widget = document.getElementById(id);
+            if (widget) {
+                if (collapsed) widget.classList.add('collapsed');
+                else widget.classList.remove('collapsed');
+            }
+        });
+    } catch(e) {}
+}
+
 // ===== WebSocket =====
 let ws = null;
 let wsRetryDelay = 1000;
@@ -44,9 +75,12 @@ function setSystemStatus(state, text) {
 
 // ===== Clock =====
 function updateClock() {
-    document.getElementById('clock').textContent = new Date().toLocaleTimeString('en-US', {
+    const now = new Date();
+    document.getElementById('clock').textContent = now.toLocaleTimeString('en-US', {
         hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
     });
+    const dateEl = document.getElementById('clockDate');
+    if (dateEl) dateEl.textContent = now.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
 }
 setInterval(updateClock, 1000);
 updateClock();
@@ -820,6 +854,7 @@ function renderTimers() {
 
 // ===== Init =====
 async function init() {
+    restoreWidgetStates();
     connectWebSocket();
     initVoice();
     
