@@ -214,6 +214,56 @@
         </div>
     </div>
 
+    <!-- Media Command Center -->
+    <div class="widget collapsed" id="widget-media-center">
+        <div class="widget-header" onclick="toggleWidget('widget-media-center')">
+            <div class="widget-header-left">
+                <div class="header-icon-wrap"><i class="fas fa-film"></i></div>
+                <span>MEDIA COMMAND</span>
+            </div>
+            <div class="widget-header-right"><i class="fas fa-chevron-down widget-toggle-icon"></i></div>
+        </div>
+        <div class="widget-body">
+            <!-- Tabs -->
+            <div class="mc-tabs">
+                <button class="mc-tab active" onclick="mcTab('recent')">RECENT</button>
+                <button class="mc-tab" onclick="mcTab('search')">SEARCH</button>
+                <button class="mc-tab" onclick="mcTab('add')">ADD NEW</button>
+                <button class="mc-tab" onclick="mcTab('recs')">FOR YOU</button>
+            </div>
+            <!-- Library Stats Bar -->
+            <div class="mc-stats" id="mc-stats"></div>
+            <!-- Recent -->
+            <div class="mc-panel" id="mc-recent">
+                <div class="mc-grid" id="mc-recent-grid"></div>
+            </div>
+            <!-- Search -->
+            <div class="mc-panel" id="mc-search" style="display:none;">
+                <div class="mc-search-bar">
+                    <input type="text" id="mc-search-input" placeholder="Search your Plex library..." onkeydown="if(event.key==='Enter')mcSearch()">
+                    <button onclick="mcSearch()"><i class="fas fa-search"></i></button>
+                </div>
+                <div class="mc-grid" id="mc-search-grid"></div>
+            </div>
+            <!-- Add New -->
+            <div class="mc-panel" id="mc-add" style="display:none;">
+                <div class="mc-add-type">
+                    <button class="mc-type-btn active" onclick="mcAddType('movie')">🎥 MOVIE</button>
+                    <button class="mc-type-btn" onclick="mcAddType('show')">📺 TV SHOW</button>
+                </div>
+                <div class="mc-search-bar">
+                    <input type="text" id="mc-add-input" placeholder="Search movies to download..." onkeydown="if(event.key==='Enter')mcAddSearch()">
+                    <button onclick="mcAddSearch()"><i class="fas fa-search"></i></button>
+                </div>
+                <div class="mc-grid" id="mc-add-grid"></div>
+            </div>
+            <!-- Recommendations -->
+            <div class="mc-panel" id="mc-recs" style="display:none;">
+                <button class="mc-recs-btn" onclick="mcGetRecs()"><i class="fas fa-wand-magic-sparkles"></i> GET RECOMMENDATIONS</button>
+                <div id="mc-recs-content"></div>
+            </div>
+        </div>
+    </div>
     <!-- Infrastructure -->
     <div class="widget collapsed" id="widget-infra">
         <div class="widget-header" onclick="toggleWidget('widget-infra')">

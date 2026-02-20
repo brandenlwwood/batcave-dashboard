@@ -1100,3 +1100,166 @@ async function init() {
 }
 
 init();
+
+// ===== Media Command Center =====
+let mcAddMode = 'movie';
+
+function mcTab(tab) {
+    document.querySelectorAll('.mc-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.mc-panel').forEach(p => p.style.display = 'none');
+    event.target.classList.add('active');
+    document.getElementById('mc-' + tab).style.display = 'block';
+    if (tab === 'recent' && !document.getElementById('mc-recent-grid').children.length) fetchMcRecent();
+}
+
+function mcAddType(type) {
+    mcAddMode = type;
+    document.querySelectorAll('.mc-type-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+    document.getElementById('mc-add-input').placeholder = type === 'movie' ? 'Search movies to download...' : 'Search TV shows to download...';
+    document.getElementById('mc-add-grid').innerHTML = '';
+}
+
+async function fetchMcRecent() {
+    const grid = document.getElementById('mc-recent-grid');
+    grid.innerHTML = '<div class="mc-loading">SCANNING PLEX...</div>';
+    try {
+        const data = await (await fetch('/api/plex/recent')).json();
+        if (!data.length) { grid.innerHTML = '<div class="mc-loading">NO RECENT ITEMS</div>'; return; }
+        grid.innerHTML = data.map(m => `
+            <div class="mc-card" title="${(m.summary||'').replace(/"/g,'&quot;')}">
+                ${m.thumb ? `<img src="${m.thumb}" loading="lazy" alt="">` : `<div class="mc-noimg">${m.type==='movie'?'🎬':'📺'}</div>`}
+                <span class="mc-badge ${m.type==='movie'?'movie':'show'}">${m.type==='movie'?'FILM':m.type==='season'?'SEASON':'TV'}</span>
+                <div class="mc-card-info">
+                    <div class="mc-card-title">${m.grandparentTitle ? m.grandparentTitle+': ' : ''}${m.title}</div>
+                    <div class="mc-card-meta">${m.year||''} ${m.rating ? '⭐ '+m.rating : ''}</div>
+                </div>
+            </div>
+        `).join('');
+    } catch(e) { grid.innerHTML = '<div class="mc-loading">SIGNAL LOST</div>'; }
+}
+
+async function fetchMcStats() {
+    try {
+        const libs = await (await fetch('/api/plex/libraries')).json();
+        const el = document.getElementById('mc-stats');
+        el.innerHTML = libs.map(l => `${l.title}: <span class="val">${l.count}</span>`).join(' &nbsp;|&nbsp; ');
+    } catch(e) {}
+}
+
+async function mcSearch() {
+    const q = document.getElementById('mc-search-input').value.trim();
+    if (!q) return;
+    const grid = document.getElementById('mc-search-grid');
+    grid.innerHTML = '<div class="mc-loading">SEARCHING PLEX...</div>';
+    try {
+        const data = await (await fetch('/api/plex/search?q=' + encodeURIComponent(q))).json();
+        if (!data.length) { grid.innerHTML = '<div class="mc-loading">NO RESULTS</div>'; return; }
+        grid.innerHTML = data.map(m => `
+            <div class="mc-card" title="${(m.summary||'').replace(/"/g,'&quot;')}">
+                ${m.thumb ? `<img src="${m.thumb}" loading="lazy" alt="">` : `<div class="mc-noimg">🔍</div>`}
+                <span class="mc-badge ${m.type==='movie'?'movie':'show'}">${m.type||'?'}</span>
+                <div class="mc-card-info">
+                    <div class="mc-card-title">${m.title}</div>
+                    <div class="mc-card-meta">${m.year||''} ${m.rating ? '⭐ '+m.rating : ''}</div>
+                </div>
+            </div>
+        `).join('');
+    } catch(e) { grid.innerHTML = '<div class="mc-loading">SEARCH FAILED</div>'; }
+}
+
+async function mcAddSearch() {
+    const q = document.getElementById('mc-add-input').value.trim();
+    if (!q) return;
+    const grid = document.getElementById('mc-add-grid');
+    grid.innerHTML = '<div class="mc-loading">SEARCHING...</div>';
+    try {
+        const endpoint = mcAddMode === 'movie' ? '/api/radarr/search' : '/api/sonarr/search';
+        const data = await (await fetch(endpoint + '?q=' + encodeURIComponent(q))).json();
+        if (!data.length) { grid.innerHTML = '<div class="mc-loading">NO RESULTS</div>'; return; }
+        grid.innerHTML = data.map((m, i) => `
+            <div class="mc-card">
+                ${m.poster ? `<img src="${m.poster}" loading="lazy" alt="">` : `<div class="mc-noimg">${mcAddMode==='movie'?'🎥':'📺'}</div>`}
+                ${m.exists ? '<span class="mc-badge exists">OWNED</span>' : '<span class="mc-badge new">NEW</span>'}
+                <div class="mc-card-info">
+                    <div class="mc-card-title">${m.title}</div>
+                    <div class="mc-card-meta">${m.year||''} ${m.rating ? '⭐ '+Number(m.rating).toFixed(1) : ''} ${m.network||''}</div>
+                    ${!m.exists ? `<button class="mc-add-btn" id="mc-add-${i}" onclick="mcDoAdd(${i}, ${m.tmdbId||0}, ${m.tvdbId||0}, '${(m.title||'').replace(/'/g,"\\'")}')">
+                        <i class="fas fa-plus"></i> DOWNLOAD
+                    </button>` : ''}
+                </div>
+            </div>
+        `).join('');
+    } catch(e) { grid.innerHTML = '<div class="mc-loading">SEARCH FAILED</div>'; }
+}
+
+async function mcDoAdd(idx, tmdbId, tvdbId, title) {
+    const btn = document.getElementById('mc-add-' + idx);
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ADDING...';
+    try {
+        const endpoint = mcAddMode === 'movie' ? '/api/radarr/add' : '/api/sonarr/add';
+        const body = mcAddMode === 'movie' ? {tmdbId} : {tvdbId};
+        const r = await fetch(endpoint, {method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)});
+        const data = await r.json();
+        if (data.success) {
+            btn.innerHTML = '<i class="fas fa-check"></i> ADDED';
+            btn.classList.add('added');
+        } else {
+            btn.innerHTML = '<i class="fas fa-times"></i> FAILED';
+            btn.disabled = false;
+        }
+    } catch(e) {
+        btn.innerHTML = '<i class="fas fa-times"></i> ERROR';
+        btn.disabled = false;
+    }
+}
+
+async function mcGetRecs() {
+    const content = document.getElementById('mc-recs-content');
+    content.innerHTML = '<div class="mc-loading"><i class="fas fa-wand-magic-sparkles fa-spin"></i> ANALYZING YOUR TASTE...</div>';
+    try {
+        const data = await (await fetch('/api/media/recommendations')).json();
+        let html = '';
+        if (data.movies?.length) {
+            html += '<div class="mc-recs-section"><h3>🎥 RECOMMENDED MOVIES</h3>';
+            html += data.movies.map(m => `
+                <div class="mc-rec-item">
+                    <div style="flex:1">
+                        <div class="mc-rec-title">${m.title} <span class="mc-rec-year">(${m.year||''})</span></div>
+                        <div class="mc-rec-why">${m.why||''}</div>
+                    </div>
+                    <button class="mc-rec-add" onclick="document.getElementById('mc-add-input').value='${(m.title||'').replace(/'/g,"\\'")}';mcAddMode='movie';mcTab('add');mcAddSearch();">+ ADD</button>
+                </div>
+            `).join('');
+            html += '</div>';
+        }
+        if (data.shows?.length) {
+            html += '<div class="mc-recs-section"><h3>📺 RECOMMENDED SHOWS</h3>';
+            html += data.shows.map(m => `
+                <div class="mc-rec-item">
+                    <div style="flex:1">
+                        <div class="mc-rec-title">${m.title} <span class="mc-rec-year">(${m.year||''})</span></div>
+                        <div class="mc-rec-why">${m.why||''}</div>
+                    </div>
+                    <button class="mc-rec-add" onclick="document.getElementById('mc-add-input').value='${(m.title||'').replace(/'/g,"\\'")}';mcAddMode='show';mcTab('add');mcAddSearch();">+ ADD</button>
+                </div>
+            `).join('');
+            html += '</div>';
+        }
+        content.innerHTML = html || '<div class="mc-loading">NO RECOMMENDATIONS AVAILABLE</div>';
+    } catch(e) { content.innerHTML = '<div class="mc-loading">RECOMMENDATION ENGINE OFFLINE</div>'; }
+}
+
+// Load on widget expand
+const mcObserver = new MutationObserver(() => {
+    const w = document.getElementById('widget-media-center');
+    if (w && !w.classList.contains('collapsed') && !document.getElementById('mc-recent-grid').children.length) {
+        fetchMcRecent();
+        fetchMcStats();
+    }
+});
+document.addEventListener('DOMContentLoaded', () => {
+    const w = document.getElementById('widget-media-center');
+    if (w) mcObserver.observe(w, {attributes: true, attributeFilter: ['class']});
+});

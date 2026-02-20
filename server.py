@@ -1269,4 +1269,292 @@ async def run_command(cmd):
 
 
 # --- Static files (mount last) ---
+
+# ===== Media Command Center (Plex + Sonarr + Radarr) =====
+PLEX_URL = os.getenv("PLEX_URL", "http://10.10.1.5:32400")
+PLEX_TOKEN = os.getenv("PLEX_TOKEN", "")
+SONARR_URL = os.getenv("SONARR_URL", "http://192.168.11.10:8989")
+SONARR_KEY = os.getenv("SONARR_API_KEY", "")
+RADARR_URL = os.getenv("RADARR_URL", "http://192.168.11.9:7878")
+RADARR_KEY = os.getenv("RADARR_API_KEY", "")
+
+
+@app.get("/api/plex/recent")
+async def plex_recent(count: int = 20):
+    """Recently added to Plex"""
+    try:
+        async with httpx.AsyncClient(timeout=10) as c:
+            r = await c.get(f"{PLEX_URL}/library/recentlyAdded",
+                params={"X-Plex-Container-Start": 0, "X-Plex-Container-Size": count},
+                headers={"X-Plex-Token": PLEX_TOKEN, "Accept": "application/json"})
+            data = r.json()["MediaContainer"].get("Metadata", [])
+            return [{"title": m.get("title",""), "year": m.get("year",""),
+                     "type": m.get("type",""), "summary": m.get("summary","")[:200],
+                     "rating": m.get("audienceRating", m.get("rating","")),
+                     "thumb": f"/api/plex/thumb{m['thumb']}" if m.get("thumb") else None,
+                     "addedAt": m.get("addedAt",""), "duration": m.get("duration",0),
+                     "grandparentTitle": m.get("grandparentTitle",""),
+                     "parentTitle": m.get("parentTitle","")} for m in data]
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, 500)
+
+
+@app.get("/api/plex/search")
+async def plex_search(q: str):
+    """Search Plex library"""
+    try:
+        async with httpx.AsyncClient(timeout=10) as c:
+            r = await c.get(f"{PLEX_URL}/hubs/search",
+                params={"query": q, "limit": 20},
+                headers={"X-Plex-Token": PLEX_TOKEN, "Accept": "application/json"})
+            hubs = r.json()["MediaContainer"].get("Hub", [])
+            results = []
+            for hub in hubs:
+                for m in hub.get("Metadata", []):
+                    results.append({"title": m.get("title",""), "year": m.get("year",""),
+                                    "type": m.get("type",""), "summary": m.get("summary","")[:200],
+                                    "rating": m.get("audienceRating", m.get("rating","")),
+                                    "thumb": f"/api/plex/thumb{m['thumb']}" if m.get("thumb") else None})
+            return results
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, 500)
+
+
+@app.get("/api/plex/thumb/{path:path}")
+async def plex_thumb(path: str):
+    """Proxy Plex thumbnails"""
+    try:
+        async with httpx.AsyncClient(timeout=10) as c:
+            r = await c.get(f"{PLEX_URL}/{path}",
+                headers={"X-Plex-Token": PLEX_TOKEN})
+            return Response(content=r.content, media_type=r.headers.get("content-type","image/jpeg"))
+    except:
+        return Response(status_code=404)
+
+
+@app.get("/api/plex/libraries")
+async def plex_libraries():
+    """Plex library stats"""
+    try:
+        async with httpx.AsyncClient(timeout=10) as c:
+            r = await c.get(f"{PLEX_URL}/library/sections",
+                headers={"X-Plex-Token": PLEX_TOKEN, "Accept": "application/json"})
+            libs = r.json()["MediaContainer"]["Directory"]
+            result = []
+            for lib in libs:
+                # Get count
+                r2 = await c.get(f"{PLEX_URL}/library/sections/{lib['key']}/all?X-Plex-Container-Size=0",
+                    headers={"X-Plex-Token": PLEX_TOKEN, "Accept": "application/json"})
+                count = r2.json()["MediaContainer"].get("size", r2.json()["MediaContainer"].get("totalSize", 0))
+                result.append({"title": lib["title"], "type": lib["type"], "count": count, "key": lib["key"]})
+            return result
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, 500)
+
+
+@app.get("/api/sonarr/series")
+async def sonarr_series():
+    """All monitored series from Sonarr"""
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.get(f"{SONARR_URL}/api/v3/series",
+                headers={"X-Api-Key": SONARR_KEY})
+            series = r.json()
+            return [{"id": s["id"], "title": s["title"], "year": s.get("year",""),
+                     "status": s.get("status",""), "seasons": len(s.get("seasons",[])),
+                     "episodeFileCount": s.get("statistics",{}).get("episodeFileCount",0),
+                     "totalEpisodeCount": s.get("statistics",{}).get("totalEpisodeCount",0),
+                     "sizeOnDisk": s.get("statistics",{}).get("sizeOnDisk",0),
+                     "network": s.get("network",""), "overview": s.get("overview","")[:200],
+                     "poster": f"/api/sonarr/poster/{s['id']}" if s.get("images") else None,
+                     "monitored": s.get("monitored", False)} for s in series]
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, 500)
+
+
+@app.get("/api/sonarr/poster/{series_id}")
+async def sonarr_poster(series_id: int):
+    """Proxy Sonarr poster"""
+    try:
+        async with httpx.AsyncClient(timeout=10) as c:
+            r = await c.get(f"{SONARR_URL}/api/v3/series/{series_id}",
+                headers={"X-Api-Key": SONARR_KEY})
+            images = r.json().get("images", [])
+            poster = next((i for i in images if i["coverType"] == "poster"), None)
+            if poster and poster.get("remoteUrl"):
+                r2 = await c.get(poster["remoteUrl"])
+                return Response(content=r2.content, media_type="image/jpeg")
+        return Response(status_code=404)
+    except:
+        return Response(status_code=404)
+
+
+@app.get("/api/sonarr/search")
+async def sonarr_search(q: str):
+    """Search for new series to add via Sonarr"""
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.get(f"{SONARR_URL}/api/v3/series/lookup",
+                params={"term": q}, headers={"X-Api-Key": SONARR_KEY})
+            results = r.json()
+            # Check which are already added
+            r2 = await c.get(f"{SONARR_URL}/api/v3/series",
+                headers={"X-Api-Key": SONARR_KEY})
+            existing_tvdb = {s.get("tvdbId") for s in r2.json()}
+            return [{"title": s.get("title",""), "year": s.get("year",""),
+                     "overview": s.get("overview","")[:200], "tvdbId": s.get("tvdbId"),
+                     "network": s.get("network",""), "status": s.get("status",""),
+                     "seasons": len(s.get("seasons",[])),
+                     "rating": s.get("ratings",{}).get("value",""),
+                     "poster": next((i["remoteUrl"] for i in s.get("images",[]) if i["coverType"]=="poster"), None),
+                     "exists": s.get("tvdbId") in existing_tvdb} for s in results[:15]]
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, 500)
+
+
+@app.post("/api/sonarr/add")
+async def sonarr_add(request: Request):
+    """Add a series to Sonarr"""
+    try:
+        body = await request.json()
+        tvdb_id = body["tvdbId"]
+        async with httpx.AsyncClient(timeout=15) as c:
+            # Lookup the series first
+            r = await c.get(f"{SONARR_URL}/api/v3/series/lookup",
+                params={"term": f"tvdb:{tvdb_id}"}, headers={"X-Api-Key": SONARR_KEY})
+            series = r.json()[0]
+            # Get root folder
+            rf = await c.get(f"{SONARR_URL}/api/v3/rootfolder", headers={"X-Api-Key": SONARR_KEY})
+            root = rf.json()[0]["path"]
+            # Get quality profile
+            qp = await c.get(f"{SONARR_URL}/api/v3/qualityprofile", headers={"X-Api-Key": SONARR_KEY})
+            profile_id = qp.json()[0]["id"]
+            # Add it
+            payload = {**series, "rootFolderPath": root, "qualityProfileId": profile_id,
+                       "monitored": True, "addOptions": {"searchForMissingEpisodes": True}}
+            r2 = await c.post(f"{SONARR_URL}/api/v3/series",
+                json=payload, headers={"X-Api-Key": SONARR_KEY})
+            if r2.status_code in (200, 201):
+                return {"success": True, "title": series.get("title","")}
+            return JSONResponse({"error": r2.text}, r2.status_code)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, 500)
+
+
+@app.get("/api/radarr/movies")
+async def radarr_movies():
+    """All movies from Radarr"""
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.get(f"{RADARR_URL}/api/v3/movie",
+                headers={"X-Api-Key": RADARR_KEY})
+            movies = r.json()
+            return [{"id": m["id"], "title": m["title"], "year": m.get("year",""),
+                     "status": m.get("status",""), "hasFile": m.get("hasFile", False),
+                     "sizeOnDisk": m.get("sizeOnDisk",0),
+                     "overview": m.get("overview","")[:200],
+                     "rating": m.get("ratings",{}).get("tmdb",{}).get("value",""),
+                     "poster": next((i["remoteUrl"] for i in m.get("images",[]) if i["coverType"]=="poster"), None),
+                     "monitored": m.get("monitored", False)} for m in movies]
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, 500)
+
+
+@app.get("/api/radarr/search")
+async def radarr_search(q: str):
+    """Search for new movies to add via Radarr"""
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.get(f"{RADARR_URL}/api/v3/movie/lookup",
+                params={"term": q}, headers={"X-Api-Key": RADARR_KEY})
+            results = r.json()
+            # Check existing
+            r2 = await c.get(f"{RADARR_URL}/api/v3/movie",
+                headers={"X-Api-Key": RADARR_KEY})
+            existing_tmdb = {m.get("tmdbId") for m in r2.json()}
+            return [{"title": m.get("title",""), "year": m.get("year",""),
+                     "overview": m.get("overview","")[:200], "tmdbId": m.get("tmdbId"),
+                     "runtime": m.get("runtime",0),
+                     "rating": m.get("ratings",{}).get("tmdb",{}).get("value",""),
+                     "poster": next((i["remoteUrl"] for i in m.get("images",[]) if i["coverType"]=="poster"), None),
+                     "exists": m.get("tmdbId") in existing_tmdb} for m in results[:15]]
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, 500)
+
+
+@app.post("/api/radarr/add")
+async def radarr_add(request: Request):
+    """Add a movie to Radarr"""
+    try:
+        body = await request.json()
+        tmdb_id = body["tmdbId"]
+        async with httpx.AsyncClient(timeout=15) as c:
+            # Lookup
+            r = await c.get(f"{RADARR_URL}/api/v3/movie/lookup",
+                params={"term": f"tmdb:{tmdb_id}"}, headers={"X-Api-Key": RADARR_KEY})
+            movie = r.json()[0]
+            # Root folder
+            rf = await c.get(f"{RADARR_URL}/api/v3/rootfolder", headers={"X-Api-Key": RADARR_KEY})
+            root = rf.json()[0]["path"]
+            # Quality profile
+            qp = await c.get(f"{RADARR_URL}/api/v3/qualityprofile", headers={"X-Api-Key": RADARR_KEY})
+            profile_id = qp.json()[0]["id"]
+            # Add
+            payload = {**movie, "rootFolderPath": root, "qualityProfileId": profile_id,
+                       "monitored": True, "addOptions": {"searchForMovie": True}}
+            r2 = await c.post(f"{RADARR_URL}/api/v3/movie",
+                json=payload, headers={"X-Api-Key": RADARR_KEY})
+            if r2.status_code in (200, 201):
+                return {"success": True, "title": movie.get("title","")}
+            return JSONResponse({"error": r2.text}, r2.status_code)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, 500)
+
+
+@app.get("/api/media/recommendations")
+async def media_recommendations():
+    """AI recommendations based on library analysis"""
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            # Get recent Plex watches for context
+            r = await c.get(f"{PLEX_URL}/library/recentlyAdded",
+                params={"X-Plex-Container-Size": 30},
+                headers={"X-Plex-Token": PLEX_TOKEN, "Accept": "application/json"})
+            recent = r.json()["MediaContainer"].get("Metadata", [])
+            recent_titles = [f"{m.get('title','')} ({m.get('year','')})" for m in recent[:15]]
+
+            # Get Sonarr series for taste profile
+            r2 = await c.get(f"{SONARR_URL}/api/v3/series",
+                headers={"X-Api-Key": SONARR_KEY})
+            series = r2.json()
+            series_titles = [s["title"] for s in sorted(series, key=lambda x: x.get("statistics",{}).get("episodeFileCount",0), reverse=True)[:20]]
+
+            # Use OpenClaw/Alfred for recommendations
+            openclaw_url = os.getenv("OPENCLAW_URL", "")
+            openclaw_token = os.getenv("OPENCLAW_TOKEN", "")
+            if not openclaw_url or not openclaw_token:
+                return {"movies": [], "shows": [], "error": "OpenClaw not configured"}
+
+            prompt = f"""Based on this family's media library, suggest 5 movies and 5 TV shows they'd enjoy but DON'T already have. 
+            
+Family profile: Dad (tech guy, likes Batman/action/sci-fi), Mom, two daughters (teens).
+
+Recently added movies/shows: {', '.join(recent_titles)}
+Favorite TV series (most episodes): {', '.join(series_titles)}
+
+Return ONLY valid JSON with this format, no other text:
+{{"movies": [{{"title": "...", "year": 2024, "why": "one sentence reason"}}], "shows": [{{"title": "...", "year": 2024, "why": "one sentence reason"}}]}}"""
+
+            r3 = await c.post(f"{openclaw_url}/v1/chat/completions",
+                json={"model": "default", "messages": [{"role": "user", "content": prompt}], "temperature": 0.8},
+                headers={"Authorization": f"Bearer {openclaw_token}"}, timeout=30)
+            content = r3.json()["choices"][0]["message"]["content"]
+            # Extract JSON from response
+            import re
+            json_match = re.search(r'\{.*\}', content, re.DOTALL)
+            if json_match:
+                return json.loads(json_match.group())
+            return {"movies": [], "shows": [], "raw": content}
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, 500)
 app.mount("/", StaticFiles(directory="static", html=True), name="static")
