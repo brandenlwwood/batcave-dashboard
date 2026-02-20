@@ -149,11 +149,28 @@ async def weather():
             return {"error": str(e)}
 
 
+# Map dashboard channel numbers to Frigate camera names
+# Channel 1 = Front Porch = Frigate "driveway" (misnomed in Frigate)
+# Channel 2 = Driveway    = Frigate "rear" (misnomed in Frigate)
+CHANNEL_TO_FRIGATE = {1: "driveway", 2: "rear"}
+
 @app.get("/api/cameras/{channel}")
 async def camera_snapshot(channel: int):
-    url = f"{REOLINK_URL}/cgi-bin/api.cgi?cmd=Snap&channel={channel}&rs=abc123&user={REOLINK_USER}&password={REOLINK_PASS}"
+    """Fetch latest frame from Frigate (fast, cached) with Reolink NVR fallback."""
+    frigate_cam = CHANNEL_TO_FRIGATE.get(channel)
     async with httpx.AsyncClient(timeout=5) as client:
+        # Primary: Frigate's cached latest frame (no NVR rate-limit issues)
+        if frigate_cam:
+            try:
+                resp = await client.get(f"{FRIGATE_URL}/api/{frigate_cam}/latest.jpg?quality=80")
+                if resp.status_code == 200 and len(resp.content) > 1000:
+                    return Response(content=resp.content, media_type="image/jpeg",
+                                  headers={"Cache-Control": "no-cache"})
+            except Exception:
+                pass  # Fall through to Reolink
+        # Fallback: Reolink NVR direct snapshot
         try:
+            url = f"{REOLINK_URL}/cgi-bin/api.cgi?cmd=Snap&channel={channel}&rs=abc123&user={REOLINK_USER}&password={REOLINK_PASS}"
             resp = await client.get(url)
             return Response(content=resp.content, media_type=resp.headers.get("content-type", "image/jpeg"),
                           headers={"Cache-Control": "no-cache"})
@@ -838,7 +855,7 @@ async def speedtest_history():
 async def speedtest_run():
     """Run a speedtest and store results"""
     try:
-        result = await run_command("speedtest-cli --json 2>/dev/null || speedtest --format=json 2>/dev/null")
+        result = await run_command("speedtest --format=json --accept-license --accept-gdpr 2>/dev/null")
         if result.strip():
             data = json.loads(result)
             # Normalize — speedtest-cli vs ookla speedtest have different formats
