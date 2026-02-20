@@ -90,6 +90,25 @@
 
     <!-- Family Activities -->
 
+    <!-- Calendar — Expanded by Default -->
+    <div class="widget widget-calendar" id="widget-calendar" style="grid-column: span 3;">
+        <div class="widget-header" onclick="toggleWidget('widget-calendar')">
+            <div class="widget-header-left">
+                <div class="header-icon-wrap"><i class="fas fa-calendar-days"></i></div>
+                <span>FAMILY CALENDAR</span>
+            </div>
+            <div class="widget-header-right">
+                <div class="cal-source-pills" id="cal-sources"></div>
+                <i class="fas fa-chevron-down widget-toggle-icon"></i>
+            </div>
+        </div>
+        <div class="widget-body">
+            <div class="calendar-view" id="calendar-view">
+                <div class="loading-placeholder">Loading schedules...</div>
+            </div>
+        </div>
+    </div>
+
     <div class="widget widget-cameras collapsed" id="widget-cameras">
         <div class="widget-header" onclick="toggleWidget('widget-cameras')">
             <div class="widget-header-left">

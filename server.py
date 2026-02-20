@@ -925,6 +925,127 @@ async def mark_notification_read(notif_id: str):
         notif_file.write_text(json.dumps(data, indent=2))
     return {"status": "ok"}
 
+
+# ============================================================
+# API Routes — Calendar (ICS feeds + Google Calendar)
+# ============================================================
+
+@app.get("/api/calendar")
+async def calendar_events():
+    """Fetch and merge events from all calendar sources"""
+    from icalendar import Calendar
+    from dateutil import tz
+    from dateutil.rrule import rrulestr
+    
+    eastern = tz.gettz("America/New_York")
+    now = datetime.now(tz=eastern)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    window_end = today_start + timedelta(days=14)  # 2 weeks ahead
+    
+    all_events = []
+    
+    # ICS feed sources
+    ics_feeds = [
+        {"url": "http://avc13red.woodu2.com/calendar.ics", "source": "AVC 13 Red", "color": "#e83050"},
+        {"url": "http://avc15red.woodu2.com/calendar.ics", "source": "AVC 15 Red", "color": "#8860e8"},
+    ]
+    
+    # Google Calendar ICS URL (if configured)
+    google_ics = os.getenv("GOOGLE_CALENDAR_ICS", "")
+    if google_ics:
+        ics_feeds.append({"url": google_ics, "source": "Family", "color": "#00b4e8"})
+    
+    # Additional ICS feeds from env (comma-separated)
+    extra_ics = os.getenv("EXTRA_ICS_FEEDS", "")
+    if extra_ics:
+        for i, url in enumerate(extra_ics.split(",")):
+            url = url.strip()
+            if url:
+                ics_feeds.append({"url": url, "source": f"Calendar {i+1}", "color": "#00e8d0"})
+    
+    async with httpx.AsyncClient(timeout=15) as client:
+        for feed in ics_feeds:
+            try:
+                resp = await client.get(feed["url"])
+                if resp.status_code != 200:
+                    continue
+                
+                cal = Calendar.from_ical(resp.text)
+                
+                for component in cal.walk():
+                    if component.name != "VEVENT":
+                        continue
+                    
+                    summary = str(component.get("SUMMARY", "No Title"))
+                    location = str(component.get("LOCATION", "")) if component.get("LOCATION") else ""
+                    description = str(component.get("DESCRIPTION", "")) if component.get("DESCRIPTION") else ""
+                    
+                    dtstart = component.get("DTSTART")
+                    dtend = component.get("DTEND")
+                    
+                    if not dtstart:
+                        continue
+                    
+                    start = dtstart.dt
+                    end = dtend.dt if dtend else None
+                    
+                    # Handle date vs datetime
+                    if hasattr(start, 'hour'):
+                        # It's a datetime
+                        if start.tzinfo is None:
+                            start = start.replace(tzinfo=tz.UTC)
+                        start = start.astimezone(eastern)
+                        if end and hasattr(end, 'hour'):
+                            if end.tzinfo is None:
+                                end = end.replace(tzinfo=tz.UTC)
+                            end = end.astimezone(eastern)
+                        all_day = False
+                    else:
+                        # It's a date (all-day event)
+                        start = datetime.combine(start, datetime.min.time()).replace(tzinfo=eastern)
+                        if end:
+                            end = datetime.combine(end, datetime.min.time()).replace(tzinfo=eastern)
+                        all_day = True
+                    
+                    # Filter to our window
+                    if start > window_end or (end and end < today_start) or (not end and start < today_start):
+                        continue
+                    
+                    all_events.append({
+                        "title": summary,
+                        "start": start.isoformat(),
+                        "end": end.isoformat() if end else None,
+                        "all_day": all_day,
+                        "location": location.replace("\\n", " ").replace("\\,", ",")[:100] if location else "",
+                        "source": feed["source"],
+                        "color": feed["color"],
+                    })
+            except Exception as e:
+                all_events.append({
+                    "title": f"⚠ Error loading {feed['source']}",
+                    "start": now.isoformat(),
+                    "end": None,
+                    "all_day": False,
+                    "location": str(e)[:80],
+                    "source": feed["source"],
+                    "color": "#e8a020",
+                })
+    
+    # Sort by start time
+    all_events.sort(key=lambda e: e["start"])
+    
+    # Group by day
+    days = {}
+    for evt in all_events:
+        day_key = evt["start"][:10]
+        if day_key not in days:
+            days[day_key] = []
+        days[day_key].append(evt)
+    
+    return {"events": all_events, "by_day": days, "sources": [f["source"] for f in ics_feeds]}
+
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
     await manager.connect(ws)

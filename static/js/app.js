@@ -542,6 +542,77 @@ async function loadChatHistory() {
     } catch(e) { console.error('[Chat History]', e); }
 }
 
+
+// ===== Calendar Widget =====
+async function fetchCalendar() {
+    try {
+        const data = await (await fetch('/api/calendar')).json();
+        const view = document.getElementById('calendar-view');
+        const sourcePills = document.getElementById('cal-sources');
+        
+        // Source pills
+        if (data.sources?.length) {
+            sourcePills.innerHTML = data.sources.map(s => 
+                `<span class="cal-source-pill">${s}</span>`
+            ).join('');
+        }
+        
+        if (!data.events?.length) {
+            view.innerHTML = '<div class="loading-placeholder">No upcoming events</div>';
+            return;
+        }
+        
+        const byDay = data.by_day || {};
+        const today = new Date().toISOString().slice(0, 10);
+        const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+        
+        let html = '<div class="cal-timeline">';
+        
+        const dayKeys = Object.keys(byDay).sort();
+        for (const dayKey of dayKeys) {
+            const events = byDay[dayKey];
+            const dayDate = new Date(dayKey + 'T12:00:00');
+            
+            let dayLabel;
+            if (dayKey === today) dayLabel = 'TODAY';
+            else if (dayKey === tomorrow) dayLabel = 'TOMORROW';
+            else dayLabel = dayDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase();
+            
+            const isToday = dayKey === today;
+            
+            html += `<div class="cal-day ${isToday ? 'cal-today' : ''}">
+                <div class="cal-day-header">
+                    <span class="cal-day-label">${dayLabel}</span>
+                    <span class="cal-day-count">${events.length} event${events.length !== 1 ? 's' : ''}</span>
+                </div>
+                <div class="cal-events">`;
+            
+            for (const evt of events) {
+                const startDt = new Date(evt.start);
+                const timeStr = evt.all_day ? 'ALL DAY' : startDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                let endStr = '';
+                if (evt.end && !evt.all_day) {
+                    const endDt = new Date(evt.end);
+                    endStr = ' – ' + endDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                }
+                
+                html += `<div class="cal-event" style="border-left-color: ${evt.color || '#00b4e8'}">
+                    <div class="cal-event-time">${timeStr}${endStr}</div>
+                    <div class="cal-event-title">${escapeHtml(evt.title)}</div>
+                    ${evt.location ? `<div class="cal-event-location"><i class="fas fa-map-pin"></i> ${escapeHtml(evt.location)}</div>` : ''}
+                    <span class="cal-event-source" style="color: ${evt.color || '#00b4e8'}">${evt.source}</span>
+                </div>`;
+            }
+            
+            html += '</div></div>';
+        }
+        
+        html += '</div>';
+        view.innerHTML = html;
+    } catch(e) { console.error('[Calendar]', e); }
+}
+
+
 // ===== Init =====
 
 // ===== Phase 3: News Ticker =====
@@ -920,6 +991,77 @@ async function loadChatHistory() {
     } catch(e) { console.error('[Chat History]', e); }
 }
 
+
+// ===== Calendar Widget =====
+async function fetchCalendar() {
+    try {
+        const data = await (await fetch('/api/calendar')).json();
+        const view = document.getElementById('calendar-view');
+        const sourcePills = document.getElementById('cal-sources');
+        
+        // Source pills
+        if (data.sources?.length) {
+            sourcePills.innerHTML = data.sources.map(s => 
+                `<span class="cal-source-pill">${s}</span>`
+            ).join('');
+        }
+        
+        if (!data.events?.length) {
+            view.innerHTML = '<div class="loading-placeholder">No upcoming events</div>';
+            return;
+        }
+        
+        const byDay = data.by_day || {};
+        const today = new Date().toISOString().slice(0, 10);
+        const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+        
+        let html = '<div class="cal-timeline">';
+        
+        const dayKeys = Object.keys(byDay).sort();
+        for (const dayKey of dayKeys) {
+            const events = byDay[dayKey];
+            const dayDate = new Date(dayKey + 'T12:00:00');
+            
+            let dayLabel;
+            if (dayKey === today) dayLabel = 'TODAY';
+            else if (dayKey === tomorrow) dayLabel = 'TOMORROW';
+            else dayLabel = dayDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase();
+            
+            const isToday = dayKey === today;
+            
+            html += `<div class="cal-day ${isToday ? 'cal-today' : ''}">
+                <div class="cal-day-header">
+                    <span class="cal-day-label">${dayLabel}</span>
+                    <span class="cal-day-count">${events.length} event${events.length !== 1 ? 's' : ''}</span>
+                </div>
+                <div class="cal-events">`;
+            
+            for (const evt of events) {
+                const startDt = new Date(evt.start);
+                const timeStr = evt.all_day ? 'ALL DAY' : startDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                let endStr = '';
+                if (evt.end && !evt.all_day) {
+                    const endDt = new Date(evt.end);
+                    endStr = ' – ' + endDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                }
+                
+                html += `<div class="cal-event" style="border-left-color: ${evt.color || '#00b4e8'}">
+                    <div class="cal-event-time">${timeStr}${endStr}</div>
+                    <div class="cal-event-title">${escapeHtml(evt.title)}</div>
+                    ${evt.location ? `<div class="cal-event-location"><i class="fas fa-map-pin"></i> ${escapeHtml(evt.location)}</div>` : ''}
+                    <span class="cal-event-source" style="color: ${evt.color || '#00b4e8'}">${evt.source}</span>
+                </div>`;
+            }
+            
+            html += '</div></div>';
+        }
+        
+        html += '</div>';
+        view.innerHTML = html;
+    } catch(e) { console.error('[Calendar]', e); }
+}
+
+
 // ===== Init =====
 async function init() {
     restoreWidgetStates();
@@ -941,6 +1083,7 @@ async function init() {
         fetchSpeedtestHistory(),
         fetchNotifications(),
         loadChatHistory(),
+        fetchCalendar(),
     ]);
 
     // Periodic refreshes
@@ -957,6 +1100,7 @@ async function init() {
     setInterval(fetchTopology, 60 * 1000);
     setInterval(fetchSpeedtestHistory, 5 * 60 * 1000);
     setInterval(fetchNotifications, 30 * 1000);
+    setInterval(fetchCalendar, 5 * 60 * 1000);
 }
 
 init();
