@@ -407,13 +407,27 @@ function toggleVoice() {
 
 function speakText(text) {
     if (!('speechSynthesis' in window)) return;
-    const utter = new SpeechSynthesisUtterance(text);
+    // Clean text for speech - remove emoji, markdown
+    const cleanText = text.replace(/[\u{1F600}-\u{1F6FF}\u{2600}-\u{2B55}\u{1F900}-\u{1F9FF}]/gu, '')
+        .replace(/[*_`#]/g, '').replace(/\n/g, '. ').trim();
+    if (!cleanText) return;
+    
+    const utter = new SpeechSynthesisUtterance(cleanText);
     utter.rate = 1.0;
-    utter.pitch = 0.9;
-    // Try to find a good English voice
+    utter.pitch = 0.85;
+    utter.volume = 1.0;
+    
+    // Try to find a good English voice — prefer British male for the Alfred vibe
     const voices = speechSynthesis.getVoices();
-    const preferred = voices.find(v => v.name.includes('Google UK English Male') || v.name.includes('Daniel'));
+    const preferred = voices.find(v => 
+        v.name.includes('Google UK English Male') || 
+        v.name.includes('Daniel') ||
+        v.name.includes('Arthur') ||
+        (v.lang === 'en-GB' && v.name.toLowerCase().includes('male'))
+    ) || voices.find(v => v.lang.startsWith('en') && v.name.includes('Male'))
+      || voices.find(v => v.lang.startsWith('en'));
     if (preferred) utter.voice = preferred;
+    
     speechSynthesis.speak(utter);
 }
 
@@ -436,6 +450,16 @@ function addChatMessage(text, sender) {
 }
 
 async function sendChatMessage(text) {
+    // Show typing indicator
+    const typingId = 'typing-' + Date.now();
+    const msgs = document.getElementById('chat-messages');
+    const typingDiv = document.createElement('div');
+    typingDiv.className = 'chat-msg alfred';
+    typingDiv.id = typingId;
+    typingDiv.innerHTML = '<div class="chat-avatar">A</div><div class="chat-bubble typing-indicator"><span></span><span></span><span></span></div>';
+    msgs.appendChild(typingDiv);
+    msgs.scrollTop = msgs.scrollHeight;
+    
     try {
         const resp = await fetch('/api/chat', {
             method: 'POST',
@@ -443,9 +467,19 @@ async function sendChatMessage(text) {
             body: JSON.stringify({ message: text })
         });
         const data = await resp.json();
-        // For now show acknowledgment — full relay coming in Phase 3
-        addChatMessage("Message received. Full Telegram relay coming soon — for now, send me messages on Telegram directly. 🎩", 'alfred');
+        
+        // Remove typing indicator
+        const typing = document.getElementById(typingId);
+        if (typing) typing.remove();
+        
+        const response = data.response || data.error || "No response";
+        addChatMessage(response, 'alfred');
+        
+        // Speak the response via TTS
+        speakText(response);
     } catch(e) {
+        const typing = document.getElementById(typingId);
+        if (typing) typing.remove();
         addChatMessage("Connection error. Try Telegram directly.", 'alfred');
     }
 }
@@ -489,6 +523,23 @@ function playClip(url) {
         if (e.key === 'Escape') { modal.remove(); document.removeEventListener('keydown', escHandler); }
     };
     document.addEventListener('keydown', escHandler);
+}
+
+
+// ===== Load Chat History =====
+async function loadChatHistory() {
+    try {
+        const history = await (await fetch('/api/chat/history')).json();
+        if (Array.isArray(history) && history.length) {
+            const msgs = document.getElementById('chat-messages');
+            // Clear default message
+            msgs.innerHTML = '';
+            // Show last 10 messages
+            for (const msg of history.slice(-10)) {
+                addChatMessage(msg.content, msg.role === 'user' ? 'user' : 'alfred');
+            }
+        }
+    } catch(e) { console.error('[Chat History]', e); }
 }
 
 // ===== Init =====
@@ -852,6 +903,23 @@ function renderTimers() {
 }
 
 
+
+// ===== Load Chat History =====
+async function loadChatHistory() {
+    try {
+        const history = await (await fetch('/api/chat/history')).json();
+        if (Array.isArray(history) && history.length) {
+            const msgs = document.getElementById('chat-messages');
+            // Clear default message
+            msgs.innerHTML = '';
+            // Show last 10 messages
+            for (const msg of history.slice(-10)) {
+                addChatMessage(msg.content, msg.role === 'user' ? 'user' : 'alfred');
+            }
+        }
+    } catch(e) { console.error('[Chat History]', e); }
+}
+
 // ===== Init =====
 async function init() {
     restoreWidgetStates();
@@ -872,6 +940,7 @@ async function init() {
         fetchTopology(),
         fetchSpeedtestHistory(),
         fetchNotifications(),
+        loadChatHistory(),
     ]);
 
     // Periodic refreshes

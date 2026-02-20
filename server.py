@@ -546,15 +546,114 @@ async def family_activities():
     }
 
 
+# New /api/chat endpoint - replaces the placeholder
 @app.post("/api/chat")
 async def chat_message(request: Request):
-    """Send a message to Alfred via Telegram relay (proxy to OpenClaw)"""
+    """Send a message to Alfred via OpenClaw API and get a response"""
     body = await request.json()
     message = body.get("message", "").strip()
     if not message:
         return {"error": "Empty message"}
-    # For now, return acknowledgment. Full Telegram integration would need bot token.
-    return {"status": "received", "message": message, "note": "Relay to Alfred pending Telegram bot integration"}
+    
+    openclaw_url = os.getenv("OPENCLAW_URL", "http://10.10.1.50:18789")
+    openclaw_token = os.getenv("OPENCLAW_TOKEN", "")
+    
+    if not openclaw_token:
+        return {"error": "OpenClaw not configured", "response": "I can't connect right now. Message me on Telegram instead."}
+    
+    # Get or create conversation history
+    chat_history_file = Path("/app/data/chat_history.json")
+    history = []
+    if chat_history_file.exists():
+        try:
+            history = json.loads(chat_history_file.read_text())
+        except:
+            history = []
+    
+    # Keep last 10 messages for context
+    history.append({"role": "user", "content": message})
+    history = history[-20:]
+    
+    async with httpx.AsyncClient(timeout=120) as client:
+        try:
+            resp = await client.post(
+                f"{openclaw_url}/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {openclaw_token}",
+                    "Content-Type": "application/json",
+                    "x-openclaw-agent-id": "main",
+                },
+                json={
+                    "model": "openclaw",
+                    "user": "batcave-dashboard",
+                    "messages": history,
+                },
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                assistant_msg = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                
+                # Filter out NO_REPLY / HEARTBEAT_OK
+                if assistant_msg.strip() in ("NO_REPLY", "HEARTBEAT_OK"):
+                    assistant_msg = "I'm here. What do you need?"
+                
+                history.append({"role": "assistant", "content": assistant_msg})
+                
+                # Save history
+                chat_history_file.parent.mkdir(parents=True, exist_ok=True)
+                chat_history_file.write_text(json.dumps(history[-20:]))
+                
+                return {"status": "ok", "response": assistant_msg}
+            else:
+                return {"error": f"OpenClaw returned {resp.status_code}", "response": "Couldn't reach my brain. Try Telegram."}
+        except Exception as e:
+            return {"error": str(e), "response": "Connection failed. Try Telegram."}
+
+
+@app.get("/api/chat/history")
+async def chat_history():
+    """Get recent chat history"""
+    chat_history_file = Path("/app/data/chat_history.json")
+    if chat_history_file.exists():
+        try:
+            return json.loads(chat_history_file.read_text())
+        except:
+            pass
+    return []
+
+
+@app.get("/api/telegram/recent")
+async def telegram_recent():
+    """Get recent messages from Telegram (last messages from the bot)"""
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
+    
+    if not bot_token or not chat_id:
+        return {"error": "Telegram not configured", "messages": []}
+    
+    async with httpx.AsyncClient(timeout=10) as client:
+        try:
+            resp = await client.get(
+                f"https://api.telegram.org/bot{bot_token}/getUpdates",
+                params={"offset": -20, "limit": 20}
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                messages = []
+                for update in data.get("result", []):
+                    msg = update.get("message", {})
+                    if str(msg.get("chat", {}).get("id")) == chat_id:
+                        messages.append({
+                            "text": msg.get("text", ""),
+                            "from": msg.get("from", {}).get("first_name", "Unknown"),
+                            "is_bot": msg.get("from", {}).get("is_bot", False),
+                            "date": msg.get("date", 0),
+                        })
+                return {"messages": messages[-10:]}
+            return {"error": "Telegram API error", "messages": []}
+        except Exception as e:
+            return {"error": str(e), "messages": []}
+
 
 
 # ============================================================
