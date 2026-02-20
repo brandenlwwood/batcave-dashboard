@@ -1948,3 +1948,46 @@ html, body {
     .mc-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
     .mc-tabs { flex-wrap: wrap; }
 }
+
+/* Global readability boost — subtext/secondary text */
+:root {
+    --text-muted: #8a9bb5;  /* was darker, now brighter */
+    --text-secondary: #b0bdd0;  /* boost secondary */
+}
+
+/* Infrastructure widget */
+.infra-ip, .infra-detail, .infra-stat { font-size: 13px !important; }
+.infra-name { font-size: 15px !important; }
+
+/* Network topology */
+.topo-router-stats, .topo-vlan-info, .topo-iface-info, .topo-device-info { font-size: 13px !important; color: var(--text-secondary) !important; }
+.topo-vlan-name, .topo-device-name { font-size: 14px !important; }
+.topo-router-name { font-size: 16px !important; }
+
+/* Health/system widget */
+.health-stat, .health-label { font-size: 13px !important; }
+
+/* General small text boost */
+.wx-label, .fc-label { font-size: 10px !important; }
+.wx-value { font-size: 18px !important; }
+.fc-temps { font-size: 15px !important; }
+
+/* Media command subtext */
+.mc-card-meta { font-size: 12px !important; }
+.mc-card-title { font-size: 13px !important; }
+.mc-stats { font-size: 12px !important; }
+
+/* Calendar subtext */
+.cal-event-time, .cal-event-source { font-size: 12px !important; }
+
+/* Frigate/motion detection */
+.frigate-label, .frigate-score, .frigate-time { font-size: 13px !important; }
+
+/* Notification items */
+.notif-time, .notif-source { font-size: 12px !important; }
+.notif-text { font-size: 14px !important; }
+
+/* All muted/secondary text minimum size */
+[class*="-meta"], [class*="-detail"], [class*="-info"], [class*="-stat"], [class*="-desc"] {
+    font-size: max(12px, inherit) !important;
+}
