@@ -18,6 +18,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, Response
 import httpx
 
+import sqlite3
+import secrets
+
+import jwt as pyjwt
+import bcrypt
+
 app = FastAPI(title="Batcave Command Center")
 
 # --- WebSocket Manager ---
@@ -42,6 +48,109 @@ class ConnectionManager:
         self.active -= dead
 
 manager = ConnectionManager()
+
+# --- Auth System ---
+AUTH_DATA_DIR = Path("/app/data")
+AUTH_DB_PATH = AUTH_DATA_DIR / "users.db"
+JWT_SECRET_FILE = AUTH_DATA_DIR / ".jwt_secret"
+LABELS_FILE = AUTH_DATA_DIR / "widget_labels.json"
+PERMISSIONS_FILE = AUTH_DATA_DIR / "user_permissions.json"
+JWT_EXPIRY_DAYS = 7
+
+WIDGET_DEFAULTS = {
+    "widget-weather": "WEATHER", "widget-calendar": "FAMILY CALENDAR",
+    "widget-cameras": "CAMERAS", "widget-security": "SECURITY OPS",
+    "widget-scenes": "PROTOCOLS", "widget-lights": "LIGHTING ARRAY",
+    "widget-activities": "FAMILY OPS", "widget-media": "MEDIA ARRAY",
+    "widget-media-center": "MEDIA COMMAND", "widget-infra": "SYSTEMS STATUS",
+    "widget-health": "ALFRED NEURAL NET", "widget-frigate": "MOTION DETECTION",
+    "widget-topology": "NETWORK MAP", "widget-speedtest": "BANDWIDTH",
+    "widget-notifications": "ALERT LOG", "widget-timers": "QUICK TIMERS",
+    "widget-chat": "ALFRED TERMINAL", "widget-kanban": "MISSION BOARD",
+}
+
+
+# --- Login Rate Limiting ---
+_login_attempts = {}  # ip -> (count, first_attempt_time)
+LOGIN_MAX_ATTEMPTS = 5
+LOGIN_WINDOW_SECONDS = 300  # 5 minutes
+
+def _check_rate_limit(ip):
+    import time
+    now = time.time()
+    if ip in _login_attempts:
+        count, first = _login_attempts[ip]
+        if now - first > LOGIN_WINDOW_SECONDS:
+            _login_attempts[ip] = (1, now)
+            return True
+        if count >= LOGIN_MAX_ATTEMPTS:
+            return False
+        _login_attempts[ip] = (count + 1, first)
+        return True
+    _login_attempts[ip] = (1, now)
+    return True
+
+def _reset_rate_limit(ip):
+    _login_attempts.pop(ip, None)
+
+def _jwt_secret():
+    if JWT_SECRET_FILE.exists():
+        return JWT_SECRET_FILE.read_text().strip()
+    s = secrets.token_hex(32)
+    JWT_SECRET_FILE.parent.mkdir(parents=True, exist_ok=True)
+    JWT_SECRET_FILE.write_text(s)
+    return s
+
+def _init_users_db():
+    AUTH_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(AUTH_DB_PATH))
+    conn.execute("""CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL, display_name TEXT, role TEXT DEFAULT 'user',
+        created_at TEXT, last_login TEXT)""")
+    conn.commit()
+    if conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0:
+        h = bcrypt.hashpw(b"batcave", bcrypt.gensalt()).decode()
+        conn.execute("INSERT INTO users (username,password_hash,display_name,role,created_at) VALUES (?,?,?,?,?)",
+                     ("admin", h, "Administrator", "admin", datetime.now().isoformat()))
+        conn.commit()
+        print(">>> Auto-created admin user (password: batcave)")
+    conn.close()
+
+def _db():
+    c = sqlite3.connect(str(AUTH_DB_PATH))
+    c.row_factory = sqlite3.Row
+    return c
+
+def _make_token(uid, uname, role):
+    return pyjwt.encode({"user_id": uid, "username": uname, "role": role,
+                         "exp": datetime.utcnow() + timedelta(days=JWT_EXPIRY_DAYS)},
+                        _jwt_secret(), algorithm="HS256")
+
+def _decode_token(tok):
+    try:
+        return pyjwt.decode(tok, _jwt_secret(), algorithms=["HS256"])
+    except:
+        return None
+
+def _current_user(request: Request):
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        return _decode_token(auth[7:])
+    return None
+
+def _get_labels():
+    if LABELS_FILE.exists():
+        try: return json.loads(LABELS_FILE.read_text())
+        except: pass
+    return {}
+
+def _get_all_permissions():
+    if PERMISSIONS_FILE.exists():
+        try: return json.loads(PERMISSIONS_FILE.read_text())
+        except: pass
+    return {}
+
 
 # --- Config ---
 HA_URL = os.getenv("HA_URL", "http://10.10.1.170:8123")
@@ -89,14 +198,206 @@ SCENE_ICONS = {
 }
 
 
+
+# --- Auth Middleware ---
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import RedirectResponse as StarletteRedirect, JSONResponse as StarletteJSON
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    OPEN_PATHS = {"/login", "/login.html", "/api/auth/login", "/favicon.ico"}
+    OPEN_PREFIXES = ("/static/", "/css/", "/js/", "/img/", "/fonts/")
+
+    async def dispatch(self, request, call_next):
+        path = request.url.path
+        # Allow open paths
+        if path in self.OPEN_PATHS or any(path.startswith(p) for p in self.OPEN_PREFIXES):
+            return await call_next(request)
+        # Allow websocket
+        if path == "/ws":
+            return await call_next(request)
+        # API endpoints need auth (except login)
+        if path.startswith("/api/"):
+            user = _current_user(request)
+            if not user:
+                return StarletteJSON({"error": "Unauthorized"}, status_code=401)
+            # Admin endpoints need admin role
+            if path.startswith("/api/admin/") and user.get("role") != "admin":
+                return StarletteJSON({"error": "Forbidden"}, status_code=403)
+            return await call_next(request)
+        # Admin page auth handled client-side (JS checks role via /api/auth/me)
+        # Server-side redirect doesn't work because browser nav has no Authorization header
+        return await call_next(request)
+
+app.add_middleware(AuthMiddleware)
+
 # ============================================================
 # API Routes — Phase 1
 # ============================================================
+
+
+@app.get("/login")
+async def login_page():
+    return FileResponse(STATIC_DIR / "login.html")
+
+@app.get("/admin")
+async def admin_page():
+    return FileResponse(STATIC_DIR / "admin.html")
 
 @app.get("/")
 async def index():
     return FileResponse(STATIC_DIR / "index.html")
 
+
+
+
+# ============================================================
+# Auth & Admin API Routes
+# ============================================================
+
+@app.post("/api/auth/login")
+async def auth_login(request: Request):
+    client_ip = request.client.host if request.client else "unknown"
+    if not _check_rate_limit(client_ip):
+        return JSONResponse({"error": "Too many attempts. Try again in 5 minutes."}, status_code=429)
+    body = await request.json()
+    username = body.get("username", "").strip()
+    password = body.get("password", "")
+    if not username or not password:
+        return JSONResponse({"error": "Username and password required"}, status_code=400)
+    conn = _db()
+    row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+    if not row or not bcrypt.checkpw(password.encode(), row["password_hash"].encode()):
+        conn.close()
+        return JSONResponse({"error": "Invalid credentials"}, status_code=401)
+    conn.execute("UPDATE users SET last_login = ? WHERE id = ?", (datetime.now().isoformat(), row["id"]))
+    conn.commit()
+    conn.close()
+    _reset_rate_limit(client_ip)
+    token = _make_token(row["id"], row["username"], row["role"])
+    return {"token": token, "user": {"id": row["id"], "username": row["username"],
+            "display_name": row["display_name"], "role": row["role"]}}
+
+
+@app.get("/api/auth/me")
+async def auth_me(request: Request):
+    user = _current_user(request)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    conn = _db()
+    row = conn.execute("SELECT * FROM users WHERE id = ?", (user["user_id"],)).fetchone()
+    conn.close()
+    if not row:
+        return JSONResponse({"error": "User not found"}, status_code=404)
+    # Get permissions
+    perms = _get_all_permissions().get(row["username"], {})
+    labels = _get_labels()
+    return {"id": row["id"], "username": row["username"], "display_name": row["display_name"],
+            "role": row["role"], "permissions": perms, "labels": labels, "widget_defaults": WIDGET_DEFAULTS}
+
+
+@app.get("/api/admin/users")
+async def admin_list_users(request: Request):
+    conn = _db()
+    rows = conn.execute("SELECT id, username, display_name, role, created_at, last_login FROM users ORDER BY id").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+@app.post("/api/admin/users")
+async def admin_create_user(request: Request):
+    body = await request.json()
+    username = body.get("username", "").strip()
+    password = body.get("password", "")
+    display_name = body.get("display_name", "").strip() or username
+    role = body.get("role", "user")
+    if not username or not password:
+        return JSONResponse({"error": "Username and password required"}, status_code=400)
+    if role not in ("admin", "user"):
+        role = "user"
+    pw_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    conn = _db()
+    try:
+        conn.execute("INSERT INTO users (username,password_hash,display_name,role,created_at) VALUES (?,?,?,?,?)",
+                     (username, pw_hash, display_name, role, datetime.now().isoformat()))
+        conn.commit()
+    except sqlite3.IntegrityError:
+        conn.close()
+        return JSONResponse({"error": "Username already exists"}, status_code=409)
+    uid = conn.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()["id"]
+    conn.close()
+    return {"id": uid, "username": username, "display_name": display_name, "role": role}
+
+
+@app.put("/api/admin/users/{user_id}")
+async def admin_update_user(user_id: int, request: Request):
+    body = await request.json()
+    conn = _db()
+    row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not row:
+        conn.close()
+        return JSONResponse({"error": "User not found"}, status_code=404)
+    updates = []
+    params = []
+    if "display_name" in body:
+        updates.append("display_name = ?")
+        params.append(body["display_name"])
+    if "role" in body and body["role"] in ("admin", "user"):
+        updates.append("role = ?")
+        params.append(body["role"])
+    if body.get("password"):
+        updates.append("password_hash = ?")
+        params.append(bcrypt.hashpw(body["password"].encode(), bcrypt.gensalt()).decode())
+    if updates:
+        params.append(user_id)
+        conn.execute(f"UPDATE users SET {', '.join(updates)} WHERE id = ?", params)
+        conn.commit()
+    conn.close()
+    return {"status": "ok"}
+
+
+@app.delete("/api/admin/users/{user_id}")
+async def admin_delete_user(user_id: int, request: Request):
+    user = _current_user(request)
+    if user and user["user_id"] == user_id:
+        return JSONResponse({"error": "Cannot delete yourself"}, status_code=400)
+    conn = _db()
+    conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    conn.commit()
+    conn.close()
+    return {"status": "ok"}
+
+
+@app.get("/api/admin/labels")
+async def admin_get_labels(request: Request):
+    return {"labels": _get_labels(), "defaults": WIDGET_DEFAULTS}
+
+
+@app.put("/api/admin/labels")
+async def admin_save_labels(request: Request):
+    body = await request.json()
+    LABELS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    LABELS_FILE.write_text(json.dumps(body, indent=2))
+    return {"status": "ok"}
+
+
+@app.get("/api/admin/permissions")
+async def admin_get_all_permissions(request: Request):
+    return _get_all_permissions()
+
+
+@app.get("/api/admin/permissions/{username}")
+async def admin_get_user_permissions(username: str, request: Request):
+    return _get_all_permissions().get(username, {})
+
+
+@app.put("/api/admin/permissions/{username}")
+async def admin_save_user_permissions(username: str, request: Request):
+    body = await request.json()
+    all_perms = _get_all_permissions()
+    all_perms[username] = body
+    PERMISSIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    PERMISSIONS_FILE.write_text(json.dumps(all_perms, indent=2))
+    return {"status": "ok"}
 
 @app.get("/api/health")
 async def health():
@@ -683,7 +984,7 @@ async def telegram_recent():
 # ============================================================
 
 @app.get("/api/news")
-async def news_feed():
+async def news_feed(request: Request, keywords: str = None):
     """Curated news ticker — eBPF, federal IT, Cisco, competitors"""
     topics = [
         ("eBPF Cilium cloud native networking", "ebpf"),
@@ -691,9 +992,14 @@ async def news_feed():
         ("Cisco Hypershield security", "cisco"),
         ("zero trust microsegmentation federal", "zerotrust"),
     ]
-    # Rotate topic based on hour
-    hour = datetime.now().hour
-    topic_query, topic_tag = topics[hour % len(topics)]
+    # Check for custom keywords from user permissions or query param
+    if keywords:
+        topic_query = keywords
+        topic_tag = "custom"
+    else:
+        # Rotate topic based on hour
+        hour = datetime.now().hour
+        topic_query, topic_tag = topics[hour % len(topics)]
     
     articles = []
     async with httpx.AsyncClient(timeout=15) as client:
@@ -1165,6 +1471,12 @@ async def calendar_events(start: str = None, days: int = 30):
 
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
+    # Auth: require token as query param
+    token = ws.query_params.get("token", "")
+    user = _decode_token(token) if token else None
+    if not user:
+        await ws.close(code=4001, reason="Unauthorized")
+        return
     await manager.connect(ws)
     try:
         while True:
@@ -1184,6 +1496,7 @@ async def websocket_endpoint(ws: WebSocket):
 
 @app.on_event("startup")
 async def startup():
+    _init_users_db()
     asyncio.create_task(periodic_updates())
 
 

@@ -37,6 +37,11 @@
             </div>
             <span id="statusText">ONLINE</span>
         </div>
+        <div class="user-menu" id="userMenu" style="display:none">
+            <span class="user-menu-name" id="userDisplayName"></span>
+            <a href="/admin" class="user-menu-btn" id="adminLink" style="display:none" title="Admin Console"><i class="fas fa-gear"></i></a>
+            <button class="user-menu-btn" onclick="logout()" title="Logout"><i class="fas fa-right-from-bracket"></i></button>
+        </div>
         <div class="clock-container">
             <div class="clock" id="clock"></div>
             <div class="clock-date" id="clockDate"></div>

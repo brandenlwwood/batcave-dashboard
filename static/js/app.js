@@ -1,3 +1,100 @@
+// ===== Auth Integration =====
+const AUTH_TOKEN_KEY = 'batcave-token';
+let currentUser = null;
+
+function getAuthHeaders() {
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+}
+
+function authFetch(url, opts = {}) {
+    opts.headers = { ...getAuthHeaders(), ...(opts.headers || {}) };
+    return fetch(url, opts);
+}
+
+async function checkAuth() {
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    if (!token) {
+        window.location.href = '/login';
+        return false;
+    }
+    try {
+        const resp = await fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${token}` } });
+        if (resp.status === 401) {
+            localStorage.removeItem(AUTH_TOKEN_KEY);
+            window.location.href = '/login';
+            return false;
+        }
+        currentUser = await resp.json();
+        // Show user menu
+        const userMenu = document.getElementById('userMenu');
+        if (userMenu) {
+            userMenu.style.display = 'flex';
+            document.getElementById('userDisplayName').textContent = currentUser.display_name || currentUser.username;
+            if (currentUser.role === 'admin') {
+                document.getElementById('adminLink').style.display = '';
+            }
+        }
+        // Apply widget permissions
+        applyPermissions();
+        // Apply custom labels
+        applyLabels();
+        return true;
+    } catch (e) {
+        console.error('[Auth]', e);
+        return true; // Don't block on network errors
+    }
+}
+
+function applyPermissions() {
+    if (!currentUser || currentUser.role === 'admin') return; // Admin sees all
+    const perms = currentUser.permissions || {};
+    const widgets = perms.widgets || {};
+    Object.entries(widgets).forEach(([widgetId, config]) => {
+        if (config.visible === false) {
+            const el = document.getElementById(widgetId);
+            if (el) el.style.display = 'none';
+        }
+    });
+}
+
+function applyLabels() {
+    if (!currentUser) return;
+    const labels = currentUser.labels || {};
+    const defaults = currentUser.widget_defaults || {};
+    Object.entries(labels).forEach(([widgetId, label]) => {
+        if (!label) return;
+        const el = document.getElementById(widgetId);
+        if (el) {
+            const headerSpan = el.querySelector('.widget-header-left > span');
+            if (headerSpan) headerSpan.textContent = label;
+        }
+    });
+}
+
+function logout() {
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+    window.location.href = '/login';
+}
+
+// Monkey-patch global fetch to add auth headers and handle 401s
+const _originalFetch = window.fetch;
+window.fetch = function(url, opts = {}) {
+    if (typeof url === 'string' && url.startsWith('/api/') && !url.includes('/api/auth/login')) {
+        opts.headers = { ...getAuthHeaders(), ...(opts.headers || {}) };
+    }
+    return _originalFetch.call(this, url, opts).then(resp => {
+        // On 401, redirect to login instead of letting browser handle it
+        if (resp.status === 401 && typeof url === 'string' && url.startsWith('/api/') && !url.includes('/api/auth/login')) {
+            localStorage.removeItem(AUTH_TOKEN_KEY);
+            if (window.location.pathname !== '/login') {
+                window.location.href = '/login';
+            }
+        }
+        return resp;
+    });
+};
+
 /**
  * Alfred's Batcave Command Center v2
  * Phase 1: Cameras, Weather, Infra, Kanban, Health, Frigate
@@ -54,7 +151,8 @@ let wsRetryDelay = 1000;
 
 function connectWebSocket() {
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    ws = new WebSocket(`${proto}//${location.host}/ws`);
+    const wsToken = localStorage.getItem(AUTH_TOKEN_KEY) || '';
+    ws = new WebSocket(`${proto}//${location.host}/ws?token=${encodeURIComponent(wsToken)}`);
     ws.onopen = () => {
         wsRetryDelay = 1000;
         document.getElementById('health-ws').textContent = '✓';
@@ -1060,6 +1158,8 @@ async function loadChatHistory() {
 
 // ===== Init =====
 async function init() {
+    const authed = await checkAuth();
+    if (!authed) return;
     restoreWidgetStates();
     connectWebSocket();
     initVoice();

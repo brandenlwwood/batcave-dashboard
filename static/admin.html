@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BATCAVE // ADMIN CONSOLE</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="icon" type="image/png" href="/img/logo.png">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #0a0e1a; color: #fff; font-family: 'Rajdhani', sans-serif; min-height: 100vh; }
+        :root { --cyan: #00b4e8; --gold: #d4a848; --bg1: #1a1d30; --bg2: #141829; --border: rgba(0,180,232,0.2); }
+
+        .topbar {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px 24px; background: var(--bg1); border-bottom: 1px solid var(--border);
+        }
+        .topbar-title { font-family: 'Orbitron', monospace; font-size: 16px; color: var(--cyan); letter-spacing: 3px; }
+        .topbar-actions { display: flex; gap: 12px; }
+        .topbar-btn {
+            background: rgba(0,180,232,0.1); border: 1px solid var(--border); border-radius: 8px;
+            color: rgba(255,255,255,0.7); padding: 8px 16px; cursor: pointer; font-family: 'Rajdhani'; font-size: 14px;
+            text-decoration: none; transition: all 0.2s;
+        }
+        .topbar-btn:hover { background: rgba(0,180,232,0.2); color: #fff; }
+
+        .tabs {
+            display: flex; gap: 0; background: var(--bg2); border-bottom: 1px solid var(--border);
+            padding: 0 24px;
+        }
+        .tab {
+            padding: 12px 24px; cursor: pointer; font-family: 'Orbitron', monospace; font-size: 12px;
+            letter-spacing: 2px; color: rgba(255,255,255,0.4); border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .tab:hover { color: rgba(255,255,255,0.7); }
+        .tab.active { color: var(--cyan); border-bottom-color: var(--cyan); }
+
+        .panel { display: none; padding: 24px; max-width: 1200px; margin: 0 auto; }
+        .panel.active { display: block; }
+
+        /* Users Table */
+        .users-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .section-title { font-family: 'Orbitron', monospace; font-size: 14px; color: var(--gold); letter-spacing: 2px; }
+        table { width: 100%; border-collapse: collapse; }
+        th { font-family: 'Orbitron', monospace; font-size: 11px; letter-spacing: 1px; color: rgba(255,255,255,0.4);
+             text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+        td { padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 14px; }
+        tr:hover td { background: rgba(0,180,232,0.05); }
+        .role-badge {
+            display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 11px;
+            font-family: 'Orbitron'; letter-spacing: 1px;
+        }
+        .role-admin { background: rgba(212,168,72,0.2); color: var(--gold); border: 1px solid rgba(212,168,72,0.3); }
+        .role-user { background: rgba(0,180,232,0.1); color: var(--cyan); border: 1px solid var(--border); }
+        .action-btn {
+            background: none; border: 1px solid var(--border); border-radius: 6px; color: rgba(255,255,255,0.6);
+            padding: 4px 10px; cursor: pointer; font-size: 12px; margin-right: 4px; transition: all 0.2s;
+        }
+        .action-btn:hover { background: rgba(0,180,232,0.15); color: var(--cyan); }
+        .action-btn.danger:hover { background: rgba(239,68,68,0.15); color: #ef4444; border-color: rgba(239,68,68,0.3); }
+        .action-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--cyan) 0%, #0090c0 100%); border: none;
+            border-radius: 8px; color: #fff; padding: 10px 20px; cursor: pointer;
+            font-family: 'Orbitron'; font-size: 12px; letter-spacing: 2px; transition: all 0.2s;
+        }
+        .btn-primary:hover { box-shadow: 0 0 16px rgba(0,180,232,0.3); }
+        .btn-save {
+            background: linear-gradient(135deg, var(--gold) 0%, #b8922e 100%); border: none;
+            border-radius: 8px; color: #fff; padding: 10px 24px; cursor: pointer;
+            font-family: 'Orbitron'; font-size: 12px; letter-spacing: 2px; transition: all 0.2s;
+        }
+        .btn-save:hover { box-shadow: 0 0 16px rgba(212,168,72,0.3); }
+
+        /* Widget Labels Grid */
+        .labels-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-bottom: 20px; }
+        .label-card {
+            background: var(--bg1); border: 1px solid var(--border); border-radius: 10px; padding: 14px;
+        }
+        .label-card-title { font-family: 'Share Tech Mono'; font-size: 11px; color: rgba(255,255,255,0.4); margin-bottom: 6px; letter-spacing: 1px; }
+        .label-card input {
+            width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 6px; padding: 8px 10px; color: #fff; font-family: 'Rajdhani'; font-size: 14px; font-weight: 600;
+            outline: none; transition: border-color 0.2s;
+        }
+        .label-card input:focus { border-color: var(--cyan); }
+        .label-card input::placeholder { color: rgba(255,255,255,0.2); }
+
+        /* Permissions */
+        .perm-user-select { margin-bottom: 20px; }
+        .perm-user-select select {
+            background: var(--bg1); border: 1px solid var(--border); border-radius: 8px;
+            color: #fff; padding: 10px 16px; font-family: 'Rajdhani'; font-size: 14px; outline: none;
+            min-width: 200px;
+        }
+        .perm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-bottom: 20px; }
+        .perm-card {
+            background: var(--bg1); border: 1px solid var(--border); border-radius: 10px; padding: 14px;
+            transition: all 0.2s; cursor: pointer;
+        }
+        .perm-card.disabled { opacity: 0.4; }
+        .perm-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .perm-card-name { font-family: 'Orbitron'; font-size: 11px; letter-spacing: 1px; color: var(--cyan); }
+        .perm-toggle {
+            width: 40px; height: 22px; border-radius: 11px; background: rgba(255,255,255,0.1);
+            position: relative; transition: background 0.2s; cursor: pointer; border: none;
+        }
+        .perm-toggle.on { background: rgba(0,180,232,0.4); }
+        .perm-toggle::after {
+            content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px;
+            border-radius: 50%; background: rgba(255,255,255,0.5); transition: all 0.2s;
+        }
+        .perm-toggle.on::after { left: 20px; background: var(--cyan); }
+        .perm-settings { margin-top: 8px; font-size: 13px; color: rgba(255,255,255,0.5); }
+        .perm-settings label { display: block; margin: 4px 0; cursor: pointer; }
+        .perm-settings input[type="text"] {
+            background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px;
+            color: #fff; padding: 4px 8px; font-size: 12px; width: 100%; margin-top: 4px;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal {
+            background: var(--bg2); border: 1px solid var(--border); border-radius: 16px;
+            padding: 32px; width: 100%; max-width: 440px; box-shadow: 0 0 40px rgba(0,180,232,0.15);
+        }
+        .modal-title { font-family: 'Orbitron'; font-size: 14px; color: var(--cyan); letter-spacing: 2px; margin-bottom: 20px; }
+        .modal .form-group { margin-bottom: 14px; }
+        .modal label { display: block; font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 1px; margin-bottom: 4px; font-family: 'Orbitron'; }
+        .modal input, .modal select {
+            width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 8px; padding: 10px 14px; color: #fff; font-family: 'Rajdhani'; font-size: 15px; outline: none;
+        }
+        .modal input:focus, .modal select:focus { border-color: var(--cyan); }
+        .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+        .btn-cancel {
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+            color: rgba(255,255,255,0.5); padding: 10px 20px; cursor: pointer; font-family: 'Rajdhani'; font-size: 14px;
+        }
+        .toast {
+            position: fixed; bottom: 24px; right: 24px; background: var(--bg1); border: 1px solid var(--border);
+            border-radius: 10px; padding: 12px 20px; color: var(--cyan); font-size: 14px; z-index: 2000;
+            display: none; box-shadow: 0 0 20px rgba(0,180,232,0.2);
+        }
+        .toast.show { display: block; }
+        .toast.error { border-color: rgba(239,68,68,0.3); color: #ef4444; }
+
+        @media (max-width: 600px) {
+            .topbar { padding: 10px 16px; }
+            .tabs { padding: 0 12px; }
+            .tab { padding: 10px 14px; font-size: 10px; }
+            .panel { padding: 16px; }
+            .labels-grid, .perm-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <div class="topbar-title"><i class="fas fa-shield-halved" style="margin-right:10px"></i>ADMIN CONSOLE</div>
+        <div class="topbar-actions">
+            <a href="/" class="topbar-btn"><i class="fas fa-arrow-left"></i> DASHBOARD</a>
+            <button class="topbar-btn" onclick="logout()"><i class="fas fa-right-from-bracket"></i> LOGOUT</button>
+        </div>
+    </div>
+    <div class="tabs">
+        <div class="tab active" onclick="switchTab('users')">USERS</div>
+        <div class="tab" onclick="switchTab('labels')">WIDGET LABELS</div>
+        <div class="tab" onclick="switchTab('permissions')">PERMISSIONS</div>
+    </div>
+
+    <!-- Users Panel -->
+    <div class="panel active" id="panel-users">
+        <div class="users-header">
+            <div class="section-title">USER MANAGEMENT</div>
+            <button class="btn-primary" onclick="showCreateUser()"><i class="fas fa-plus"></i> CREATE USER</button>
+        </div>
+        <table>
+            <thead><tr><th>USERNAME</th><th>DISPLAY NAME</th><th>ROLE</th><th>LAST LOGIN</th><th>ACTIONS</th></tr></thead>
+            <tbody id="usersTable"></tbody>
+        </table>
+    </div>
+
+    <!-- Labels Panel -->
+    <div class="panel" id="panel-labels">
+        <div class="users-header">
+            <div class="section-title">WIDGET LABELS</div>
+            <button class="btn-save" onclick="saveLabels()"><i class="fas fa-save"></i> SAVE ALL</button>
+        </div>
+        <div class="labels-grid" id="labelsGrid"></div>
+    </div>
+
+    <!-- Permissions Panel -->
+    <div class="panel" id="panel-permissions">
+        <div class="users-header">
+            <div class="section-title">WIDGET PERMISSIONS</div>
+            <button class="btn-save" onclick="savePermissions()"><i class="fas fa-save"></i> SAVE</button>
+        </div>
+        <div class="perm-user-select">
+            <select id="permUserSelect" onchange="loadUserPermissions()">
+                <option value="">Select a user...</option>
+            </select>
+        </div>
+        <div class="perm-grid" id="permGrid"></div>
+    </div>
+
+    <!-- Create/Edit User Modal -->
+    <div class="modal-overlay" id="userModal">
+        <div class="modal">
+            <div class="modal-title" id="modalTitle">CREATE USER</div>
+            <input type="hidden" id="modalUserId">
+            <div class="form-group">
+                <label>USERNAME</label>
+                <input type="text" id="modalUsername" placeholder="username">
+            </div>
+            <div class="form-group">
+                <label>DISPLAY NAME</label>
+                <input type="text" id="modalDisplayName" placeholder="Display Name">
+            </div>
+            <div class="form-group">
+                <label>PASSWORD</label>
+                <input type="password" id="modalPassword" placeholder="Password">
+            </div>
+            <div class="form-group">
+                <label>ROLE</label>
+                <select id="modalRole"><option value="user">User</option><option value="admin">Admin</option></select>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-primary" onclick="submitUser()">SAVE</button>
+                <button class="btn-cancel" onclick="closeModal()">CANCEL</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+const TOKEN_KEY = 'batcave-token';
+const WIDGETS = {
+    'widget-weather':'WEATHER','widget-calendar':'FAMILY CALENDAR','widget-cameras':'CAMERAS',
+    'widget-security':'SECURITY OPS','widget-scenes':'PROTOCOLS','widget-lights':'LIGHTING ARRAY',
+    'widget-activities':'FAMILY OPS','widget-media':'MEDIA ARRAY','widget-media-center':'MEDIA COMMAND',
+    'widget-infra':'SYSTEMS STATUS','widget-health':'ALFRED NEURAL NET','widget-frigate':'MOTION DETECTION',
+    'widget-topology':'NETWORK MAP','widget-speedtest':'BANDWIDTH','widget-notifications':'ALERT LOG',
+    'widget-timers':'QUICK TIMERS','widget-chat':'ALFRED TERMINAL','widget-kanban':'MISSION BOARD'
+};
+// Extra per-widget settings
+const WIDGET_SETTINGS = {
+    'widget-cameras': { type: 'checkboxes', label: 'Visible Channels', options: [{id:'ch1',label:'Channel 1 (Front Porch)'},{id:'ch2',label:'Channel 2 (Driveway)'}] },
+    'widget-security': { type: 'radio', label: 'Access Level', options: [{id:'full',label:'Full Control'},{id:'view',label:'View Only'}] },
+    'widget-media-center': { type: 'checkboxes', label: 'Capabilities', options: [{id:'can_add',label:'Can add new content'}] },
+};
+
+let currentUser = null;
+let allUsers = [];
+let currentLabels = {};
+let currentPermissions = {};
+
+function headers() {
+    return { 'Authorization': `Bearer ${localStorage.getItem(TOKEN_KEY)}`, 'Content-Type': 'application/json' };
+}
+
+async function apiFetch(url, opts = {}) {
+    opts.headers = { ...headers(), ...(opts.headers || {}) };
+    const r = await fetch(url, opts);
+    if (r.status === 401) { logout(); return null; }
+    return r;
+}
+
+function logout() { localStorage.removeItem(TOKEN_KEY); window.location.href = '/login'; }
+
+function toast(msg, error = false) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = error ? 'toast show error' : 'toast show';
+    setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// Tabs
+function switchTab(tab) {
+    document.querySelectorAll('.tab').forEach((t, i) => {
+        const panels = ['users','labels','permissions'];
+        t.classList.toggle('active', panels[i] === tab);
+    });
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.getElementById(`panel-${tab}`).classList.add('active');
+    if (tab === 'labels') loadLabels();
+    if (tab === 'permissions') loadPermissionsPanel();
+}
+
+// Users
+async function loadUsers() {
+    const r = await apiFetch('/api/admin/users');
+    if (!r) return;
+    allUsers = await r.json();
+    const tbody = document.getElementById('usersTable');
+    tbody.innerHTML = allUsers.map(u => `<tr>
+        <td style="font-family:'Share Tech Mono';color:var(--cyan)">${u.username}</td>
+        <td>${u.display_name || '-'}</td>
+        <td><span class="role-badge role-${u.role}">${u.role.toUpperCase()}</span></td>
+        <td style="font-size:12px;color:rgba(255,255,255,0.4)">${u.last_login ? new Date(u.last_login).toLocaleString() : 'Never'}</td>
+        <td>
+            <button class="action-btn" onclick="showEditUser(${u.id})"><i class="fas fa-pen"></i></button>
+            <button class="action-btn danger" ${u.id === currentUser.id ? 'disabled title="Cannot delete yourself"' : `onclick="deleteUser(${u.id},'${u.username}')"`}><i class="fas fa-trash"></i></button>
+        </td>
+    </tr>`).join('');
+}
+
+function showCreateUser() {
+    document.getElementById('modalTitle').textContent = 'CREATE USER';
+    document.getElementById('modalUserId').value = '';
+    document.getElementById('modalUsername').value = '';
+    document.getElementById('modalUsername').disabled = false;
+    document.getElementById('modalDisplayName').value = '';
+    document.getElementById('modalPassword').value = '';
+    document.getElementById('modalPassword').placeholder = 'Password';
+    document.getElementById('modalRole').value = 'user';
+    document.getElementById('userModal').classList.add('show');
+}
+
+function showEditUser(id) {
+    const u = allUsers.find(x => x.id === id);
+    if (!u) return;
+    document.getElementById('modalTitle').textContent = 'EDIT USER';
+    document.getElementById('modalUserId').value = id;
+    document.getElementById('modalUsername').value = u.username;
+    document.getElementById('modalUsername').disabled = true;
+    document.getElementById('modalDisplayName').value = u.display_name || '';
+    document.getElementById('modalPassword').value = '';
+    document.getElementById('modalPassword').placeholder = 'Leave blank to keep';
+    document.getElementById('modalRole').value = u.role;
+    document.getElementById('userModal').classList.add('show');
+}
+
+function closeModal() { document.getElementById('userModal').classList.remove('show'); }
+
+async function submitUser() {
+    const id = document.getElementById('modalUserId').value;
+    const body = {
+        username: document.getElementById('modalUsername').value,
+        display_name: document.getElementById('modalDisplayName').value,
+        role: document.getElementById('modalRole').value,
+    };
+    const pw = document.getElementById('modalPassword').value;
+    if (pw) body.password = pw;
+    if (!id) {
+        if (!pw) { toast('Password required for new user', true); return; }
+        const r = await apiFetch('/api/admin/users', { method: 'POST', body: JSON.stringify(body) });
+        if (!r) return;
+        if (r.ok) { toast('User created'); closeModal(); loadUsers(); }
+        else { const d = await r.json(); toast(d.error || 'Error', true); }
+    } else {
+        const r = await apiFetch(`/api/admin/users/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+        if (!r) return;
+        if (r.ok) { toast('User updated'); closeModal(); loadUsers(); }
+        else { const d = await r.json(); toast(d.error || 'Error', true); }
+    }
+}
+
+async function deleteUser(id, username) {
+    if (!confirm(`Delete user "${username}"? This cannot be undone.`)) return;
+    const r = await apiFetch(`/api/admin/users/${id}`, { method: 'DELETE' });
+    if (!r) return;
+    if (r.ok) { toast('User deleted'); loadUsers(); }
+    else { const d = await r.json(); toast(d.error || 'Error', true); }
+}
+
+// Labels
+async function loadLabels() {
+    const r = await apiFetch('/api/admin/labels');
+    if (!r) return;
+    const data = await r.json();
+    currentLabels = data.labels || {};
+    const defaults = data.defaults || WIDGETS;
+    document.getElementById('labelsGrid').innerHTML = Object.entries(WIDGETS).map(([id, name]) =>
+        `<div class="label-card">
+            <div class="label-card-title">${id}</div>
+            <input type="text" data-widget="${id}" value="${currentLabels[id] || ''}" placeholder="${name}">
+        </div>`
+    ).join('');
+}
+
+async function saveLabels() {
+    const labels = {};
+    document.querySelectorAll('#labelsGrid input').forEach(inp => {
+        const v = inp.value.trim();
+        if (v) labels[inp.dataset.widget] = v;
+    });
+    const r = await apiFetch('/api/admin/labels', { method: 'PUT', body: JSON.stringify(labels) });
+    if (r && r.ok) toast('Labels saved');
+    else toast('Error saving labels', true);
+}
+
+// Permissions
+async function loadPermissionsPanel() {
+    // Populate user dropdown
+    if (!allUsers.length) {
+        const r = await apiFetch('/api/admin/users');
+        if (r) allUsers = await r.json();
+    }
+    const sel = document.getElementById('permUserSelect');
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">Select a user...</option>' +
+        allUsers.map(u => `<option value="${u.username}">${u.display_name || u.username} (${u.role})</option>`).join('');
+    if (cur) { sel.value = cur; loadUserPermissions(); }
+}
+
+async function loadUserPermissions() {
+    const username = document.getElementById('permUserSelect').value;
+    if (!username) { document.getElementById('permGrid').innerHTML = ''; return; }
+    const r = await apiFetch(`/api/admin/permissions/${username}`);
+    if (!r) return;
+    currentPermissions = await r.json();
+    const widgets = currentPermissions.widgets || {};
+    document.getElementById('permGrid').innerHTML = Object.entries(WIDGETS).map(([id, name]) => {
+        const w = widgets[id] || { visible: true, settings: {} };
+        const on = w.visible !== false;
+        let settingsHtml = '';
+        const cfg = WIDGET_SETTINGS[id];
+        if (cfg) {
+            if (cfg.type === 'checkboxes') {
+                settingsHtml = `<div class="perm-settings"><div style="margin-bottom:4px;color:rgba(255,255,255,0.3);font-size:11px">${cfg.label}</div>` +
+                    cfg.options.map(o => `<label><input type="checkbox" data-widget="${id}" data-setting="${o.id}" ${w.settings?.[o.id] ? 'checked' : ''}> ${o.label}</label>`).join('') + '</div>';
+            } else if (cfg.type === 'radio') {
+                settingsHtml = `<div class="perm-settings"><div style="margin-bottom:4px;color:rgba(255,255,255,0.3);font-size:11px">${cfg.label}</div>` +
+                    cfg.options.map(o => `<label><input type="radio" name="setting-${id}" data-widget="${id}" data-setting="${o.id}" ${(w.settings?.access||'full')===o.id ? 'checked' : ''}> ${o.label}</label>`).join('') + '</div>';
+            }
+        }
+        return `<div class="perm-card ${on ? '' : 'disabled'}" id="perm-${id}">
+            <div class="perm-card-header">
+                <span class="perm-card-name">${name}</span>
+                <button class="perm-toggle ${on ? 'on' : ''}" data-widget="${id}" onclick="togglePerm(this)"></button>
+            </div>
+            ${settingsHtml}
+        </div>`;
+    }).join('');
+}
+
+function togglePerm(btn) {
+    btn.classList.toggle('on');
+    btn.closest('.perm-card').classList.toggle('disabled', !btn.classList.contains('on'));
+}
+
+async function savePermissions() {
+    const username = document.getElementById('permUserSelect').value;
+    if (!username) { toast('Select a user first', true); return; }
+    const widgets = {};
+    document.querySelectorAll('.perm-toggle').forEach(btn => {
+        const id = btn.dataset.widget;
+        const visible = btn.classList.contains('on');
+        const settings = {};
+        // Gather settings
+        document.querySelectorAll(`[data-widget="${id}"][data-setting]`).forEach(inp => {
+            if (inp.type === 'checkbox') settings[inp.dataset.setting] = inp.checked;
+            else if (inp.type === 'radio' && inp.checked) settings.access = inp.dataset.setting;
+        });
+        widgets[id] = { visible, settings };
+    });
+    const r = await apiFetch(`/api/admin/permissions/${username}`, {
+        method: 'PUT', body: JSON.stringify({ widgets })
+    });
+    if (r && r.ok) toast('Permissions saved');
+    else toast('Error saving', true);
+}
+
+// Init
+async function init() {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) { window.location.href = '/login'; return; }
+    const r = await fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${token}` } });
+    if (r.status === 401) { logout(); return; }
+    currentUser = await r.json();
+    if (currentUser.role !== 'admin') { window.location.href = '/'; return; }
+    loadUsers();
+}
+init();
+    </script>
+</body>
+</html>

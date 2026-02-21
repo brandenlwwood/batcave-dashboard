@@ -6,13 +6,14 @@ services:
     ports:
       - "8082:8080"
     restart: always
+    env_file: .env
     volumes:
       - ./data:/app/data
       - ./.ha_token:/app/.ha_token:ro
     environment:
       - HA_URL=http://10.10.1.170:8123
       - HA_TOKEN_FILE=/app/.ha_token
-      - FRIGATE_URL=http://10.10.1.6:5005
+      - FRIGATE_URL=http://10.10.1.4:5000
       - REOLINK_URL=http://10.10.1.129
       - REOLINK_USER=admin
       - REOLINK_PASS=W00den123

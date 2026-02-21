@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BATCAVE // ACCESS CONTROL</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="icon" type="image/png" href="/img/logo.png">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a0e1a;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Rajdhani', sans-serif;
+            color: #fff;
+            overflow: hidden;
+        }
+        .scanline {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+            pointer-events: none; z-index: 1000;
+        }
+        .bg-glow {
+            position: fixed; top: 50%; left: 50%; width: 600px; height: 600px;
+            background: radial-gradient(circle, rgba(0,180,232,0.08) 0%, transparent 70%);
+            transform: translate(-50%, -50%); pointer-events: none;
+        }
+        .login-card {
+            background: linear-gradient(135deg, #1a1d30 0%, #141829 100%);
+            border: 1px solid rgba(0,180,232,0.3);
+            border-radius: 16px;
+            padding: 48px 40px;
+            width: 100%;
+            max-width: 420px;
+            position: relative;
+            z-index: 10;
+            box-shadow: 0 0 40px rgba(0,180,232,0.1), inset 0 1px 0 rgba(255,255,255,0.05);
+        }
+        .login-icon {
+            text-align: center;
+            margin-bottom: 24px;
+            font-size: 48px;
+            color: #00b4e8;
+            text-shadow: 0 0 20px rgba(0,180,232,0.5);
+        }
+        .login-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 20px;
+            font-weight: 700;
+            text-align: center;
+            color: #00b4e8;
+            letter-spacing: 3px;
+            margin-bottom: 8px;
+        }
+        .login-subtitle {
+            text-align: center;
+            color: rgba(255,255,255,0.4);
+            font-size: 13px;
+            letter-spacing: 2px;
+            margin-bottom: 32px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            font-family: 'Orbitron', monospace;
+            font-size: 11px;
+            color: rgba(255,255,255,0.5);
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(0,180,232,0.2);
+            border-radius: 8px;
+            color: #fff;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 16px;
+            font-weight: 600;
+            outline: none;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        .form-group input:focus {
+            border-color: #00b4e8;
+            box-shadow: 0 0 12px rgba(0,180,232,0.2);
+        }
+        .login-btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #00b4e8 0%, #0090c0 100%);
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-family: 'Orbitron', monospace;
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 3px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 8px;
+        }
+        .login-btn:hover {
+            box-shadow: 0 0 20px rgba(0,180,232,0.4);
+            transform: translateY(-1px);
+        }
+        .login-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .error-msg {
+            display: none;
+            background: rgba(239,68,68,0.15);
+            border: 1px solid rgba(239,68,68,0.3);
+            border-radius: 8px;
+            padding: 10px 14px;
+            color: #ef4444;
+            font-size: 14px;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        .error-msg.show { display: block; }
+    </style>
+</head>
+<body>
+    <div class="scanline"></div>
+    <div class="bg-glow"></div>
+    <div class="login-card">
+        <div class="login-icon"><i class="fas fa-shield-halved"></i></div>
+        <div class="login-title">BATCAVE</div>
+        <div class="login-subtitle">ACCESS CONTROL SYSTEM</div>
+        <div class="error-msg" id="errorMsg"></div>
+        <form id="loginForm" onsubmit="handleLogin(event)">
+            <div class="form-group">
+                <label>IDENTITY</label>
+                <input type="text" id="username" placeholder="Username" autocomplete="username" required autofocus>
+            </div>
+            <div class="form-group">
+                <label>PASSPHRASE</label>
+                <input type="password" id="password" placeholder="Password" autocomplete="current-password" required>
+            </div>
+            <button type="submit" class="login-btn" id="loginBtn">AUTHENTICATE</button>
+        </form>
+    </div>
+    <script>
+        // If already has token, redirect
+        if (localStorage.getItem('batcave-token')) {
+            window.location.href = '/';
+        }
+        async function handleLogin(e) {
+            e.preventDefault();
+            const btn = document.getElementById('loginBtn');
+            const err = document.getElementById('errorMsg');
+            btn.disabled = true;
+            btn.textContent = 'AUTHENTICATING...';
+            err.classList.remove('show');
+            try {
+                const resp = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: document.getElementById('username').value,
+                        password: document.getElementById('password').value
+                    })
+                });
+                const data = await resp.json();
+                if (resp.ok && data.token) {
+                    localStorage.setItem('batcave-token', data.token);
+                    window.location.href = '/';
+                } else {
+                    err.textContent = data.error || 'Authentication failed';
+                    err.classList.add('show');
+                }
+            } catch (ex) {
+                err.textContent = 'Connection failed';
+                err.classList.add('show');
+            }
+            btn.disabled = false;
+            btn.textContent = 'AUTHENTICATE';
+        }
+    </script>
+</body>
+</html>
